@@ -107,6 +107,7 @@ timestamp: 2026-08-12T01:20:00+02:00
 
 | Build | Result |
 |---|---|
+| v0.9.0 | Modular-equivalence test passed startup and ran for more than ten minutes without a crash. Seven rapid-flicker F8/F9 captures were all 18 entries/21 faces/maps 0–20 and remain unclassified. Heavy logging and sidecar work remain; 13 repairs failed closed as unverified. |
 | v1.1.6 | Coarse cached-world scheduling experiment rejected after severe fidelity regression. |
 | v1.1.7 | Restored stable high-resolution behavior, but dynamic world-shadow disappearance remained. |
 | v1.1.8 | Preserved full native world chain, but disappearance still reproduced. |

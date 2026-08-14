@@ -1,5 +1,130 @@
 # Update Log
 
+## 2026-08-14 - v0.9.4 tested; lookup code cleared
+
+- PID 28488, log SHA `B12FFA03...010C`; no manual snapshots.
+- All 115 F8 failures were correct at final tail lookup return `+0x3DE0FE` and
+  corrupt at builder exit. Zero lookup-to-lookup divergence occurred.
+- Four became null and 111 became displaced pointer `0x45861D10`.
+- Next target is the builder tail after the F118 return/store, not lookup code.
+
+## 2026-08-14 - v0.9.4 builder-tail bracketing diagnostic built
+
+- Brackets F8 at every existing shared-texture lookup return after F110 lookup
+  through builder end, without adding a detour or mutating engine fields.
+- Rendering, repair, sidecars, residency, capacity and passthrough are unchanged.
+- Reproducible ASI SHA `180E01D8...ADB2`; exact two-entry ZIP SHA
+  `CC180A79...C519`. Runtime test pending.
+
+## 2026-08-14 - v0.9.3 tested; F8 writer interval sharply narrowed
+
+- PID 50976 loaded v0.9.3; preserved log SHA `A62A0FB9...71C2`.
+- All 51 F8 divergences were after the F110-lookup checkpoint and before builder
+  exit: five null and 46 pointer `0x454E04E0`; zero were before the checkpoint.
+- Nineteen F110 post-builder divergences were 13 null and six the same pointer,
+  strongly indicating a shared indexed clear/copy source.
+- BLACK_F8 was only 4 entries / 7 faces and had no nearby traced overwrite.
+  No disappearance was seen; one possible quality demotion is unconfirmed.
+
+## 2026-08-14 - v0.9.3 indexed-writer narrowing diagnostic built
+
+- Reuses the existing F110 lookup return hook as a safe mid-builder checkpoint,
+  after native F8 storage and before native F110 storage; no new detour added.
+- Captures F8/100/108/110/118 and separates F8 corruption into the intervals
+  before versus after that checkpoint. Post-builder F110 divergence now carries
+  adjacent-field fingerprints for shifted-index/copied-pointer analysis.
+- Rendering, repair, sidecars, capacity, residency and passthrough are unchanged.
+- Two compiler passes are byte-identical. ASI SHA `02F062C3...E37D2F`; exact
+  two-entry ZIP SHA `2F580AA7...19A49`.
+- Runtime test is pending; target the bridge/island streaming transition.
+
+## 2026-08-14 - v0.9.2 localizes F8 and F110 overwrite intervals
+
+- PID 9552 loaded v0.9.2; log SHA `6C86EB8D...CBD42` is preserved under
+  `Research/Logs/v0.9.2_bridge_black_flicker_pid9552`.
+- All 31,961 F110 lookups through F9 were non-null. Eight values changed after
+  correct builder exit but before renderer entry: three null, five the same
+  displaced pointer. The lookup and builder assignment are therefore valid.
+- At bridge-adjacent call 31,498, F8 lookup returned valid but builder exit was
+  null. Repair event 15,222 failed closed because the saved value was corrupt.
+- Provisionally classified F8/F9 captures were 281 calls apart and both held 18
+  entries / 21 faces. The last symmetric F8 null pair preceded F8 by 183 calls.
+- Coarse/disappearing shadows were not reproduced despite high traffic. This
+  run does not disprove that intermittent residency-pressure failure.
+- Next target is the indexed writer. Residency behavior remains unchanged until
+  the overwrite is corrected and repair-free operation is proven.
+
+## 2026-08-14 - v0.9.2 resource-provenance diagnostic built
+
+- Retains v0.9.1 rendering, repair, sidecar, capacity and full-passthrough
+  behavior unchanged.
+- Extends bounded lineage to `+0x110` using its proven lookup return RVA
+  `Disrupt+0x3DE059` and records constructor/builder/renderer/release values.
+- `STAGE_R_PROVENANCE` identifies the first invalid interval; `+0x110` remains
+  observation-only. `STAGE_R_SUMMARY` preserves exact counters every 30 seconds.
+- No residency, scheduler, capacity, vehicle or `SpotLight3` policy change.
+- Two warning-clean TinyCC builds are byte-identical. ASI SHA
+  `ABA64246...CDEA0`; exact two-entry ZIP SHA `D3FC4C9B...F806`.
+
+## 2026-08-14 - v0.9.1 tested; high-load `+0x110` boundary identified
+
+- PID 49316 loaded `0.9.1-stage-q-sparse-success-logging`; evidence is preserved
+  under `Research/Logs/v0.9.1_sparse_logging_coarse_high_traffic_pid49316`.
+- Sparse logging reduced v0.9.0's 53,064 lines / 22.9 MB to 1,089 lines /
+  377,135 bytes in a 252.154-second run: about 48.7x fewer lines and 60.8x fewer
+  bytes. No always-logged failure class occurred.
+- Sample bounds show 11,264-12,287 repairs and 9,216-10,239 balanced sidecars.
+  The resulting 73.1-81.2 extra wrapper submissions per second show the second
+  performance suspect remains active. The log contains no FPS measurement.
+- The user reported coarse/disappearing shadows in a modded high-traffic scene.
+  The screenshot documents roughly nine visible cars only; it does not depict
+  the brief shadow failure.
+- Four full-envelope resource-null cycles map exactly to record `+0x110`:
+  acquire count-six index 4 and release count-two index 0. Static recovery shows
+  the builder obtains the field from lookup key `0xCCB53E0B`.
+- Decision: do not increase capacity yet. The next build keeps the v0.9.1 engine
+  envelope and adds focused `+0x110` lineage plus low-frequency totals.
+
+## 2026-08-14 - v0.9.1 sparse-success-logging control built
+
+- Branched from tested v0.9.0 and retained every engine, repair, sidecar, guard,
+  diagnostic counter and candidate-policy behavior.
+- Changed only successful-event emission: repair and successful sidecar-release
+  records log events 1–16 and every 1,024th event thereafter.
+- Rejected repairs and failed context/lineage releases remain always logged;
+  F8/F9 retain exact cumulative counters.
+- Removed dense per-success log emission only. The known sidecar wrapper cost
+  remains intentionally unchanged, so this is a logging-cost A/B rather than a
+  complete performance fix.
+- Two warning-clean TinyCC builds are byte-identical. ASI SHA
+  `7AE82AE0...8570`.
+- Exact two-entry installable:
+  `Installables/ShadowEnginePatch_SparseSuccessLogging_v0.9.1.zip`, SHA
+  `119E8435...2891`. Status: built and package-verified; untested in game.
+
+## 2026-08-14 - v0.9.0 modular-equivalence runtime result
+
+- Preserved the clean PID 10316 session under
+  `Research/Logs/v0.9.0_modular_flicker_unclassified_captures_pid10316`; log
+  SHA `FC629475...DF3`.
+- The header proves v0.9.0 loaded. The user played for more than ten minutes
+  without a crash, materially longer than the earlier 10–60 second failures.
+  The log spans about 592.903 seconds and ends in ordinary lifecycle tracing;
+  its missing shutdown marker is not crash evidence.
+- Four F8 and three F9 captures were all 18 entries/21 faces/maps 0–20. The
+  visible flickers were too rapid to classify any keypress frame, so all seven
+  snapshots remain unclassified regardless of their source labels.
+- Full-session totals: 29,933 repair attempts; 29,920/605 restored F8/F100
+  mismatches; 20,967 balanced sidecars; 41,934 extra native wrapper submissions;
+  13 fail-closed unverified repairs; zero rollback, post-write failure or failed
+  sidecar release.
+- The 22.9 MB / 53,064-line log contains 50,900 repair/release lines (95.93%).
+  This run reinforces, but still does not isolate, dense file I/O and sidecar
+  wrapper work as separate FPS costs.
+- Next controlled optimization: v0.9.1 changes successful-event logging only.
+  It must preserve all repair and sidecar behavior, always log failures, sample
+  successful repair/release events, and retain cumulative F8/F9 summaries.
+
 ## 2026-08-13 - Stage B split-package build
 
 - Split the former combined mod into an external engine patch and a pure

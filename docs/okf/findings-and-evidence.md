@@ -314,6 +314,49 @@ memory corruption after more dynamic/type-3 work is admitted.
 - Headlight shadows themselves can remain full resolution while world shadows lose
   fidelity or disappear, indicating competition/policy rather than one global
   quality setting.
+
+# v0.9.0 modular-equivalence evidence (2026-08-14)
+
+1. **The modular source loads and sustains the repaired engine path.** PID 10316
+   identified v0.9.0 in its clean header, reached `STAGE_M_COMPLETE`, and the
+   user played for more than ten minutes without a crash. This is meaningful
+   comparison with prior 10–60 second crash builds, not unlimited stability.
+2. **The manual captures are not visual classifications.** Four F8 and three F9
+   snapshots all contained 18 entries, 21 faces and maps 0–20. Rapid flicker
+   prevented the user from knowing which visual state each keypress caught, so
+   the labels cannot prove black versus recovered state.
+3. **Sidecar lifetime stayed balanced under substantially heavier load.** The
+   run recorded 20,967 sidecar acquisitions and 20,967 successful releases,
+   with no observed release, context, symmetry, reset, rollback or post-write
+   failure.
+4. **Thirteen repairs failed closed because the cycle was unverified.** The
+   saved builder value did not agree with the non-null lookup result. The events
+   clustered near renderer calls 39,154–39,619 plus 60,915. Their proximity to
+   one later F8 is not tight enough to prove a visible-flicker cause.
+5. **Dense diagnostic I/O remains an uncontrolled performance variable.** Repair
+   and release events comprise 50,900 of 53,064 lines (95.93%), while the
+   sidecar adds 41,934 native wrapper submissions. A sparse-success-logging A/B
+   is required before changing sidecar semantics.
+
+# v0.9.1 sparse-logging and high-load evidence (2026-08-14)
+
+1. **Sparse success logging removed the dominant output volume.** PID 49316
+   loaded v0.9.1 and produced 1,089 lines / 377,135 bytes over about 252.154
+   seconds, reductions of about 48.7x and 60.8x from v0.9.0 respectively.
+2. **Sidecar work remains active.** Periodic samples bound balanced sidecars to
+   9,216-10,239, equivalent to about 73.1-81.2 extra native wrapper calls per
+   second. The run did not record FPS, so this does not quantify its FPS cost.
+3. **The screenshot is traffic-context evidence only.** It shows roughly nine
+   visible cars. It does not show the user's brief coarse/disappearing-shadow
+   observation and must not be cited as visual proof of that failure.
+4. **The full 24-face state exposes a new exact lifecycle boundary.** Four
+   producer-side null cycles used acquire count six/index 4 and release count
+   two/index 0. Static list recovery maps both positions to record `+0x110`.
+   The builder obtains this field from resource lookup key `0xCCB53E0B`.
+5. **More capacity is not the next safe experiment.** The nulls occurred without
+   sampled face overflow. Trace and repair `+0x110` before changing B4, maps or
+   passes, and keep vehicle-owner recovery separate from that diagnostic.
+
 # B4 scheduler is an adaptive range, not a single ceiling (2026-08-13)
 
 Targeted decompilation of manager `Disrupt +0x2E9B60` proves B4 is updated by
