@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "0.9.0-stage-p-modular-unity-refactor"
+#define PATCH_VERSION "0.9.4-stage-t-builder-tail-bracketing"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -34,12 +34,14 @@
 #define RESOURCE_SUBMIT_RVA      0x00427710ULL
 #define RESOURCE_WRAPPER_RVA     0x00427860ULL
 #define FRAME_BUILDER_RVA        0x003DC780ULL
+#define FRAME_BUILDER_END_RVA    0x003DF833ULL
 #define RENDER_RECORD_ACQUIRE_RVA 0x003E0F80ULL
 #define RENDER_RECORD_RELEASE_RVA 0x003C1350ULL
 #define RENDER_RECORD_CONSTRUCTOR_RVA 0x003E4420ULL
 #define SHARED_TEXTURE_LOOKUP_RVA 0x00430A80ULL
 #define FIELD_100_LOOKUP_RETURN_RVA 0x003DDD9CULL
 #define FIELD_F8_LOOKUP_RETURN_RVA  0x003DDFC0ULL
+#define FIELD_110_LOOKUP_RETURN_RVA 0x003DE059ULL
 #define SOURCE_CONFIG_LOOKUP_RVA 0x0030ACC9ULL
 #define FACE_OBJECT_BUILD_RVA    0x0030CB99ULL
 #define RENDER_QUEUE_COUNT_OFFSET 0x39798U
@@ -65,6 +67,9 @@
 #define LIFECYCLE_TRACE_PERIOD      128U
 #define LIFECYCLE_LOOKUP_LOG_INITIAL 32U
 #define LIFECYCLE_LOOKUP_LOG_PERIOD 8192U
+#define SUCCESS_TRACE_INITIAL 16U
+#define SUCCESS_TRACE_PERIOD 1024U
+#define PROVENANCE_SUMMARY_PERIOD_MS 30000U
 
 #define STRING_ASSIGN_RVA         0x000D60B0ULL
 #define STRING_VALUE_RVA          0x000CCEB0ULL
@@ -166,24 +171,44 @@ typedef struct LifecycleRecordSnapshot {
     volatile LONG builder_exit_flag;
     void *volatile builder_enter_f8;
     void *volatile builder_enter_100;
+    void *volatile builder_enter_110;
     void *volatile builder_exit_f8;
     void *volatile builder_exit_100;
+    void *volatile builder_exit_108;
+    void *volatile builder_exit_110;
+    void *volatile builder_exit_118;
     volatile LONG lookup_f8_call;
     volatile LONG lookup_100_call;
+    volatile LONG lookup_110_call;
     volatile LONG lookup_f8_thread;
     volatile LONG lookup_100_thread;
+    volatile LONG lookup_110_thread;
     void *volatile lookup_f8_result;
     void *volatile lookup_100_result;
+    void *volatile lookup_110_result;
+    volatile LONG checkpoint_110_valid;
+    volatile LONG checkpoint_110_call;
+    void *volatile checkpoint_110_f8;
+    void *volatile checkpoint_110_100;
+    void *volatile checkpoint_110_108;
+    void *volatile checkpoint_110_110;
+    void *volatile checkpoint_110_118;
+    volatile LONG tail_checkpoint_call;
+    volatile LONG tail_checkpoint_caller_rva;
+    volatile LONG tail_divergence_reported;
+    void *volatile tail_checkpoint_f8;
     volatile LONG renderer_call;
     volatile LONG renderer_thread;
     volatile LONG renderer_flag;
     void *volatile renderer_f8;
     void *volatile renderer_100;
+    void *volatile renderer_110;
     volatile LONG release_call;
     volatile LONG release_thread;
     volatile LONG release_flag;
     void *volatile release_f8;
     void *volatile release_100;
+    void *volatile release_110;
     volatile LONG sidecar_generation;
     volatile LONG sidecar_count;
     void *volatile sidecar_resource_0;
@@ -366,6 +391,7 @@ static volatile LONG g_lifecycle_builder_calls;
 static volatile LONG g_lifecycle_lookup_calls;
 static volatile LONG g_lifecycle_lookup_f8_calls;
 static volatile LONG g_lifecycle_lookup_100_calls;
+static volatile LONG g_lifecycle_lookup_110_calls;
 static volatile LONG g_lifecycle_renderer_calls;
 static volatile LONG g_lifecycle_release_calls;
 static volatile LONG g_lifecycle_builder_null_events;
@@ -373,6 +399,15 @@ static volatile LONG g_lifecycle_renderer_null_events;
 static volatile LONG g_lifecycle_release_null_events;
 static volatile LONG g_lifecycle_record_slot_misses;
 static volatile LONG g_lifecycle_thread_slot_misses;
+static volatile LONG g_lookup_110_null_events;
+static volatile LONG g_f8_before_110_divergence_events;
+static volatile LONG g_f8_after_110_divergence_events;
+static volatile LONG g_builder_tail_lookup_checkpoints;
+static volatile LONG g_builder_tail_lookup_divergence_events;
+static volatile LONG g_builder_110_divergence_events;
+static volatile LONG g_renderer_110_divergence_events;
+static volatile LONG g_release_110_divergence_events;
+static volatile LONG g_last_provenance_summary_tick;
 static volatile LONG g_pre_acquire_repair_events;
 static volatile LONG g_pre_acquire_repair_f8;
 static volatile LONG g_pre_acquire_repair_100;
