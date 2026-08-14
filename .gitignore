@@ -1,0 +1,48 @@
+# IDE state
+.idea/
+.vscode/
+.agents/
+.codex/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Private agent workflow and local project state
+AGENTS.md
+**/AGENTS.md
+handoff.md
+**/handoff.md
+docs/okf/continuation-playbook.md
+docs/okf/project-status.md
+docs/okf/workspace-reference.md
+
+# Local build and packaging output
+build/
+build_repro/
+dist/
+package/
+*.asi
+*.dll
+*.exe
+*.lib
+*.exp
+*.pdb
+*.zip
+
+# Runtime evidence and proprietary game material
+*.log
+*.dmp
+*.mdmp
+*.bin
+*.jxr
+*.sav
+
+# Local tools and environment files
+tools/tcc/
+.env
+.env.*
+*.user
+*.suo
+Thumbs.db
+Desktop.ini

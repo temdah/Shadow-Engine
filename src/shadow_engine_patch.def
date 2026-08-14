@@ -1,0 +1,3 @@
+LIBRARY ShadowEnginePatch
+EXPORTS
+    InitializeShadowEnginePatch @1
