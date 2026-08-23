@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "0.9.4-stage-t-builder-tail-bracketing"
+#define PATCH_VERSION "1.1.0"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -29,12 +29,20 @@
 #define SHADOW_MANAGER_RVA       0x002E9B60ULL
 #define PROFILE_CALLBACK_RVA     0x00308A90ULL
 #define OWNER_VECTOR_RESERVE_RVA 0x00319160ULL
+#define OWNER_VECTOR_RESERVE_CALL_RVA 0x00308B53ULL
 #define RENDER_QUEUE_PROCESS_RVA 0x00306E60ULL
 #define FACE_COST_READER_RVA     0x002C0490ULL
 #define RESOURCE_SUBMIT_RVA      0x00427710ULL
 #define RESOURCE_WRAPPER_RVA     0x00427860ULL
 #define FRAME_BUILDER_RVA        0x003DC780ULL
 #define FRAME_BUILDER_END_RVA    0x003DF833ULL
+#define SLICE_RESULT_NONNULL_RVA  0x002CC300ULL
+#define SLICE_RESULT_NULL_RVA     0x002CC31CULL
+#define SLICE_RESULT_EPILOGUE_RVA 0x002CC333ULL
+#define POST_CALL_TASK_CONSTRUCTOR_RVA 0x003E69D0ULL
+#define POST_CALL_TASK_EXECUTE_RVA 0x003E4DF0ULL
+#define POST_CALL_OBJECT_RENDERERS_RVA 0x003CA980ULL
+#define EXECUTE_FRAME_GRAPH_DISPATCH_RVA 0x003BA460ULL
 #define RENDER_RECORD_ACQUIRE_RVA 0x003E0F80ULL
 #define RENDER_RECORD_RELEASE_RVA 0x003C1350ULL
 #define RENDER_RECORD_CONSTRUCTOR_RVA 0x003E4420ULL
@@ -46,6 +54,7 @@
 #define FACE_OBJECT_BUILD_RVA    0x0030CB99ULL
 #define RENDER_QUEUE_COUNT_OFFSET 0x39798U
 #define RENDER_QUEUE_TAIL_OFFSET  0x397A0U
+#define RENDER_QUEUE_RESULT_OFFSET 0x397B0U
 #define RENDER_QUEUE_ENTRY_BYTES  0x24C0U
 #define ORIGINAL_LOCAL_MAPS 16U
 #define EXTRA_LOCAL_MAPS 8U
@@ -63,13 +72,18 @@
 #define RESOURCE_PRODUCER_SLOTS    256U
 #define LIFECYCLE_RECORD_SLOTS      2048U
 #define LIFECYCLE_THREAD_SLOTS       32U
+#define POST_CALL_TASK_SLOTS       4096U
 #define LIFECYCLE_TRACE_INITIAL     128U
 #define LIFECYCLE_TRACE_PERIOD      128U
 #define LIFECYCLE_LOOKUP_LOG_INITIAL 32U
 #define LIFECYCLE_LOOKUP_LOG_PERIOD 8192U
 #define SUCCESS_TRACE_INITIAL 16U
 #define SUCCESS_TRACE_PERIOD 1024U
+#define BOUNDARY_TRACE_INITIAL 32U
+#define BOUNDARY_TRACE_PERIOD 1024U
 #define PROVENANCE_SUMMARY_PERIOD_MS 30000U
+#define NATIVE_SLICE_RESULT_COUNT 17U
+#define EXTRA_SLICE_RESULT_COUNT (TOTAL_LOCAL_MAPS-NATIVE_SLICE_RESULT_COUNT)
 
 #define STRING_ASSIGN_RVA         0x000D60B0ULL
 #define STRING_VALUE_RVA          0x000CCEB0ULL
@@ -91,6 +105,13 @@ typedef int64_t (__fastcall *ResourceWrapperFn)(unsigned char,void **,
 typedef uint32_t (__fastcall *FaceCostReaderFn)(void *);
 typedef void (__fastcall *FrameBuilderFn)(void *,void *,void *,uint64_t,
     uint64_t,uint64_t,uint64_t);
+typedef void *(__fastcall *PostCallTaskConstructorFn)(uint64_t,const char *,
+    uint64_t,void *,void *,uint64_t,unsigned char,uint32_t,unsigned char,
+    uint64_t,void *,uint64_t,uint64_t,uint64_t);
+typedef void (__fastcall *PostCallTaskExecuteFn)(void *);
+typedef void (__fastcall *PostCallObjectRenderersFn)(void *,uint64_t,
+    unsigned char,int,unsigned char,uint64_t,void *,uint64_t,uint64_t,uint64_t);
+typedef void (__fastcall *ExecuteFrameGraphDispatchFn)(void *,uint64_t,void *);
 typedef void (__fastcall *RenderRecordAcquireFn)(void *,void *,void *);
 typedef void (__fastcall *RenderRecordReleaseFn)(void *,void *,unsigned char);
 typedef void *(__fastcall *RenderRecordConstructorFn)(void *);
@@ -168,6 +189,7 @@ typedef struct LifecycleRecordSnapshot {
     volatile LONG builder_call;
     volatile LONG builder_thread;
     volatile LONG builder_enter_flag;
+    volatile LONG builder_exit_captured;
     volatile LONG builder_exit_flag;
     void *volatile builder_enter_f8;
     void *volatile builder_enter_100;
@@ -197,6 +219,12 @@ typedef struct LifecycleRecordSnapshot {
     volatile LONG tail_checkpoint_caller_rva;
     volatile LONG tail_divergence_reported;
     void *volatile tail_checkpoint_f8;
+    volatile LONG postcall_call;
+    void *volatile postcall_enter_f8;
+    void *volatile postcall_exit_f8;
+    volatile LONG framegraph_dispatch_call;
+    void *volatile framegraph_dispatch_enter_f8;
+    void *volatile framegraph_dispatch_exit_f8;
     volatile LONG renderer_call;
     volatile LONG renderer_thread;
     volatile LONG renderer_flag;
@@ -216,6 +244,14 @@ typedef struct LifecycleRecordSnapshot {
     volatile LONG sidecar_acquired;
     volatile LONG sidecar_acquire_mode;
     volatile LONG sidecar_release_mode;
+    volatile LONG queued_postcall_tasks;
+    volatile LONG last_queued_task_serial;
+    volatile LONG extra_slice_result_generation;
+    volatile LONG extra_slice_result_builder_call;
+    volatile LONG extra_slice_result_written_mask;
+    volatile LONG extra_slice_result_consumer_state;
+    volatile LONG extra_slice_result_active_writers;
+    void *volatile extra_slice_results[EXTRA_SLICE_RESULT_COUNT];
 } LifecycleRecordSnapshot;
 
 typedef struct LifecycleThreadContext {
@@ -223,7 +259,31 @@ typedef struct LifecycleThreadContext {
     volatile LONG active;
     void *volatile record;
     volatile LONG builder_call;
+    volatile LONG task_execute_active;
+    void *volatile task;
+    void *volatile task_record;
+    volatile LONG task_creation_serial;
+    volatile LONG task_creation_generation;
+    volatile LONG task_creation_builder_call;
+    void *volatile task_expected_f8;
+    void *volatile task_creation_f8;
+    volatile LONG task_execute_generation;
+    volatile LONG task_execute_builder_call;
+    void *volatile task_execute_f8;
 } LifecycleThreadContext;
+
+typedef struct PostCallTaskProvenance {
+    void *volatile task;
+    volatile LONG published;
+    volatile LONG creation_serial;
+    void *volatile record;
+    volatile LONG creation_generation;
+    volatile LONG creation_builder_call;
+    volatile LONG creation_builder_thread;
+    volatile LONG creation_thread;
+    void *volatile expected_f8;
+    void *volatile creation_f8;
+} PostCallTaskProvenance;
 
 static const unsigned char g_resource_prologue[15] = {
     0x48,0x8B,0xC4,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57
@@ -253,6 +313,22 @@ static const unsigned char g_face_cost_reader_prologue[14] = {
 };
 static const unsigned char g_frame_builder_prologue[14] = {
     0x48,0x8B,0xC4,0x4C,0x89,0x48,0x20,0x48,0x89,0x50,0x10,0x55,0x53,0x56
+};
+static const unsigned char g_post_call_task_constructor_prologue[15] = {
+    0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,
+    0x57,0x48,0x83,0xEC,0x20
+};
+static const unsigned char g_post_call_task_execute_prologue[17] = {
+    0x48,0x83,0xEC,0x58,0x48,0x8B,0x41,0x60,
+    0x44,0x8B,0x49,0x34,0x44,0x0F,0xB6,0x41,0x30
+};
+static const unsigned char g_post_call_object_renderers_prologue[15] = {
+    0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x10,
+    0x48,0x89,0x74,0x24,0x18
+};
+static const unsigned char g_execute_frame_graph_dispatch_prologue[16] = {
+    0x48,0x89,0x6C,0x24,0x18,0x48,0x89,0x7C,0x24,0x20,
+    0x41,0x54,0x48,0x83,0xEC,0x20
 };
 static const unsigned char g_render_record_acquire_prologue[15] = {
     0x48,0x89,0x5C,0x24,0x10,0x48,0x89,0x74,0x24,0x18,
@@ -324,8 +400,29 @@ static const TailPatch g_tail_patches[] = {
 
 static HMODULE g_self;
 static LONG g_initialized;
+static volatile LONG g_nexus_init_calls;
+static volatile LONG g_nexus_entry_kind;
+static volatile LONG g_dllmain_fallback_attempts;
+static void *volatile g_nexus_interface;
 static BootstrapSnapshot g_snapshot;
 static unsigned char *g_disrupt_base;
+static uint64_t g_cluster_a_delta;
+static uint64_t g_cluster_b_delta;
+static uint64_t g_cluster_c_delta;
+static uint64_t g_string_assign_rva=STRING_ASSIGN_RVA;
+static uint64_t g_native_random_rva=0x000B9780ULL;
+static uint64_t g_owner_vector_reserve_rva=OWNER_VECTOR_RESERVE_RVA;
+static volatile LONG g_runtime_profile;
+
+/* Known protected builds preserve three internally coherent code regions even
+ * when VMProtect lays those regions out at different RVAs.  All engine access
+ * goes through this resolver; no hook or write may use a raw supported-build
+ * RVA after profile selection. */
+#define RESOLVED_ENGINE_RVA(rva) ((uint64_t)(rva)+ \
+    ((uint64_t)(rva)>=0x00420000ULL ? g_cluster_c_delta : \
+    ((uint64_t)(rva)>=0x003C0000ULL ? g_cluster_b_delta : \
+    ((uint64_t)(rva)>=0x002B0000ULL ? g_cluster_a_delta : 0ULL))))
+#define ENGINE_ADDRESS(rva) (g_disrupt_base+RESOLVED_ENGINE_RVA(rva))
 static ResourceConstructorFn g_original_resource_constructor;
 static RegisterPassFn g_original_register_pass;
 static ShadowManagerFn g_original_manager;
@@ -336,6 +433,10 @@ static ResourceSubmitFn g_original_resource_submit;
 static ResourceWrapperFn g_original_resource_wrapper;
 static FaceCostReaderFn g_original_face_cost_reader;
 static FrameBuilderFn g_original_frame_builder;
+static PostCallTaskConstructorFn g_original_post_call_task_constructor;
+static PostCallTaskExecuteFn g_original_post_call_task_execute;
+static PostCallObjectRenderersFn g_original_post_call_object_renderers;
+static ExecuteFrameGraphDispatchFn g_original_execute_frame_graph_dispatch;
 static RenderRecordAcquireFn g_original_render_record_acquire;
 static RenderRecordReleaseFn g_original_render_record_release;
 static RenderRecordConstructorFn g_original_render_record_constructor;
@@ -386,6 +487,7 @@ static ResourceNullSnapshot g_last_null_release;
 static ResourceProducerSnapshot g_resource_producers[RESOURCE_PRODUCER_SLOTS];
 static LifecycleRecordSnapshot g_lifecycle_records[LIFECYCLE_RECORD_SLOTS];
 static LifecycleThreadContext g_lifecycle_threads[LIFECYCLE_THREAD_SLOTS];
+static PostCallTaskProvenance g_postcall_tasks[POST_CALL_TASK_SLOTS];
 static volatile LONG g_lifecycle_constructor_calls;
 static volatile LONG g_lifecycle_builder_calls;
 static volatile LONG g_lifecycle_lookup_calls;
@@ -404,6 +506,52 @@ static volatile LONG g_f8_before_110_divergence_events;
 static volatile LONG g_f8_after_110_divergence_events;
 static volatile LONG g_builder_tail_lookup_checkpoints;
 static volatile LONG g_builder_tail_lookup_divergence_events;
+static volatile LONG g_postcall_calls;
+static volatile LONG g_postcall_entry_divergence_events;
+static volatile LONG g_postcall_exit_divergence_events;
+static volatile LONG g_postcall_entry_builder_overlap;
+static volatile LONG g_postcall_entry_after_correct_exit;
+static volatile LONG g_postcall_entry_after_wrong_exit;
+static volatile LONG g_postcall_entry_same_thread;
+static volatile LONG g_postcall_entry_cross_thread;
+static volatile LONG g_framegraph_dispatch_calls;
+static volatile LONG g_framegraph_dispatch_entry_divergence_events;
+static volatile LONG g_framegraph_dispatch_exit_divergence_events;
+static volatile LONG g_renderer_target_observations;
+static volatile LONG g_renderer_target_changes;
+static void *volatile g_renderer_vtable;
+static void *volatile g_renderer_slot_a0;
+static void *volatile g_renderer_slot_08;
+static volatile LONG g_postcall_task_constructor_calls;
+static volatile LONG g_postcall_task_execute_calls;
+static volatile LONG g_postcall_task_registry_misses;
+static volatile LONG g_postcall_task_record_mismatches;
+static volatile LONG g_postcall_task_creation_wrong;
+static volatile LONG g_postcall_task_execute_wrong;
+static volatile LONG g_postcall_task_execute_correct;
+static volatile LONG g_postcall_task_reused_before_execute;
+static volatile LONG g_postcall_task_same_generation_mutation;
+static volatile LONG g_postcall_task_callback_linked;
+static volatile LONG g_postcall_task_wrong_at_execute;
+static volatile LONG g_postcall_task_changed_execute_to_callback;
+static volatile LONG g_postcall_task_corrected_execute_to_callback;
+static volatile LONG g_postcall_task_queue_underflow;
+static volatile LONG g_slice_result_guard_state;
+static volatile LONG g_slice_result_native_nonnull;
+static volatile LONG g_slice_result_native_null;
+static volatile LONG g_slice_result_external_nonnull;
+static volatile LONG g_slice_result_external_null;
+static volatile LONG g_slice_result_external_store_failures;
+static volatile LONG g_slice_result_external_duplicate_indices;
+static volatile LONG g_slice_result_external_duplicate_resources;
+static volatile LONG g_slice_result_external_stale_lineage;
+static volatile LONG g_slice_result_external_late_writes;
+static volatile LONG g_slice_result_external_consumed_results;
+static volatile LONG g_slice_result_external_release_events;
+static volatile LONG g_slice_result_external_release_resources;
+static volatile LONG g_slice_result_external_release_failures;
+static volatile LONG g_slice_result_external_release_fallbacks;
+static volatile LONG g_slice_result_external_reset_pending;
 static volatile LONG g_builder_110_divergence_events;
 static volatile LONG g_renderer_110_divergence_events;
 static volatile LONG g_release_110_divergence_events;
@@ -471,9 +619,26 @@ static int64_t __fastcall hooked_resource_wrapper(unsigned char active,
 static uint32_t __fastcall hooked_face_cost_reader(void *queue);
 static void __fastcall hooked_frame_builder(void *,void *,void *,uint64_t,
     uint64_t,uint64_t,uint64_t);
+static void *__fastcall hooked_post_call_task_constructor(uint64_t,const char *,
+    uint64_t,void *,void *,uint64_t,unsigned char,uint32_t,unsigned char,
+    uint64_t,void *,uint64_t,uint64_t,uint64_t);
+static void __fastcall hooked_post_call_task_execute(void *);
+static void __fastcall hooked_post_call_object_renderers(void *,uint64_t,
+    unsigned char,int,unsigned char,uint64_t,void *,uint64_t,uint64_t,uint64_t);
+static void __fastcall hooked_execute_frame_graph_dispatch(void *,uint64_t,
+    void *);
 static void __fastcall hooked_render_record_acquire(void *,void *,void *);
 static void __fastcall hooked_render_record_release(void *,void *,unsigned char);
 static void *__fastcall hooked_render_record_constructor(void *);
 static void *__fastcall hooked_shared_texture_lookup(void *,uint32_t,void *);
 static void log_manual_lifecycle_snapshot(const char *state,LONG serial);
+static void *__fastcall hooked_external_render_record_constructor(void *);
+static void __fastcall hooked_external_frame_builder(void *,void *,void *,
+    uint64_t,uint64_t,uint64_t,uint64_t);
+static void __fastcall hooked_external_post_call_object_renderers(void *,
+    uint64_t,unsigned char,int,unsigned char,uint64_t,void *,uint64_t,
+    uint64_t,uint64_t);
+static void __fastcall hooked_external_render_record_release(void *,void *,
+    unsigned char);
+static void log_manual_external_slice_snapshot(const char *state,LONG serial);
 static int readable_memory(const void *address,size_t size);

@@ -10,6 +10,16 @@ static LONG atomic_add_long(volatile LONG *target,LONG value)
     return observed;
 }
 
+static LONG atomic_or_long(volatile LONG *target,LONG value)
+{
+    LONG observed,replaced;
+    do {
+        observed=*target;
+        replaced=InterlockedCompareExchange(target,observed|value,observed);
+    } while(replaced!=observed);
+    return observed;
+}
+
 static int begin_session_log(void)
 {
     wchar_t path[MAX_PATH];

@@ -2,7 +2,7 @@
  * pre-reservation/invariant checks. */
 static int install_manager_detour(void)
 {
-    unsigned char *target=g_disrupt_base+SHADOW_MANAGER_RVA;
+    unsigned char *target=ENGINE_ADDRESS(SHADOW_MANAGER_RVA);
     unsigned char *trampoline;
     unsigned char patch[14];
     if(memcmp(target,g_manager_prologue,sizeof(g_manager_prologue))!=0) return 0;

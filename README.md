@@ -1,91 +1,93 @@
 # Shadow Engine
 
-Experimental engine-level shadow-capacity patch for the original 2014 Windows
-release of *Watch Dogs*.
+Shadow Engine is an engine-level shadow-capacity and stability patch for the
+original 2014 Windows release of *Watch Dogs*.
 
-> **Research source only:** no public mod build or installable release exists.
-> Version numbers in this repository identify private experiments and evidence,
-> not downloadable releases. The source is published for technical review and
-> independent compilation.
+It does not add vehicle shadows by itself. It expands and repairs the native
+shadow pipeline so compatible lighting mods can request more dynamic shadows
+without displacing visible world shadows as aggressively.
 
-The project expands and repairs the Disrupt shadow pipeline so additional
-vehicle-headlight shadows can coexist with native world lighting. It is an
-ongoing reverse-engineering project, not a finished stability release.
-
-## Verified capabilities
+## What it changes
 
 - Constructs 24 physical local shadow maps instead of the native 16.
-- Registers eight additional paired shadow/alpha pass groups for maps 16-23.
+- Registers eight additional paired shadow and alpha render-pass groups.
 - Expands the physical render queue from 17 to 25 entries.
-- Pre-reserves storage for eight `0x700`-byte shadow-owner records.
-- Admits only complete multi-face lights within the 24-face physical boundary.
-- Preserves the complete native candidate chain; there is no broad spotlight or
-  vehicle-type filter.
-- Routes real gameplay work through added maps beyond the native map 15.
-- Repairs verified same-cycle corruption of render-record fields immediately
-  before renderer acquisition.
-- Preserves displaced non-null resources through balanced native sidecar
-  acquire/release submissions.
+- Pre-reserves storage for eight native shadow-owner records.
+- Routes added SliceExecute results through external storage with balanced
+  native release handling.
+- Preserves the complete native light candidate chain without broad spotlight
+  or vehicle filtering.
+- Admits complete multi-face lights within the 24-face physical boundary.
+- Fails closed on unknown or partially matching game builds and produces a
+  diagnostic log instead of installing unverified hooks.
 
-The v0.8.9 test recorded 8,299 accepted field repairs and 5,785 perfectly
-balanced sidecar acquire/release pairs with zero recorded repair or symmetry
-failures. It greatly reduced the black-world failure, but one possible instant
-flicker remained unconfirmed and the build had a major FPS regression.
+Shadow Engine increases capacity and stability. It does not increase shadow
+distance, add headlights, replace weather, or guarantee unlimited shadows.
 
-See [the proven-capability report](docs/SHADOW_ENGINE_PATCH_PROVEN_CAPABILITIES_2026-08-13.md)
-and [OKF knowledge index](docs/okf/index.md) for the evidence boundary.
+## Requirements
 
-## Current source baseline
+- The original 2014 Windows PC release of *Watch Dogs*.
+- A complete installation of
+  [NexusTools 1.1.12 or newer](https://www.nexusmods.com/watchdogs/mods/491).
+- The Fall of Windy City II and Windy City Addons for the showcased
+  vehicle-headlight configuration.
 
-v0.9.0 reorganizes the tested v0.8.9 implementation into eight ordered unity
-modules. Before changing the embedded version label, the modular tree compiled
-byte-identically to the tested v0.8.9 ASI. See
-[the modularization audit](MODULARIZATION_AUDIT.md).
+NexusTools belongs to Troplo and is not redistributed by Shadow Engine.
+Replacing only `dinput8.dll` is not a complete NexusTools installation.
 
-The unity build is intentional: it preserves TinyCC ABI behavior, static state,
-initialization order and detour layout while giving each subsystem an explicit
-source owner.
+## Installation
 
-## Open in CLion
+1. Close *Watch Dogs*.
+2. Install NexusTools completely.
+3. Install The Fall of Windy City II and Windy City Addons according to their
+   instructions.
+4. Extract the Shadow Engine archive into the folder containing
+   `Watch_Dogs.exe` and allow its `bin` directory to merge.
+5. Confirm this file exists:
 
-1. Open this repository root in CLion.
-2. Allow CLion to load `CMakeLists.txt`.
-3. Use the `shadow_engine_sources` target for navigation and refactoring.
-4. Build with the `shadow_engine_tinycc` target or run:
+   `Watch_Dogs\bin\ShadowEnginePatch.asi`
 
-```powershell
-.\build.ps1 -VerifyReproducible
-```
+6. Launch the game normally.
 
-CMake is present for IDE indexing. It is not the validated compiler. Do not
-replace the verified TinyCC build with an MSVC or Zig-linked binary without a
-separate runtime validation.
+On a successful start, Shadow Engine creates
+`Watch_Dogs\bin\ShadowEnginePatch.log`. For v1.1.0, the log should identify
+`version=1.1.0` and contain `STAGE_M_COMPLETE`.
 
-See [BUILDING.md](BUILDING.md) for toolchain setup.
+In WATCH_DOGS Mod Manager, place Windy City Addons below The Fall of Windy
+City II in priority so the Addons combined DynamicLightPrefab database wins the
+conflict. Shadow Engine is an ASI engine patch and is not ordered in that list.
 
-## Publication status
+## Updating and uninstalling
 
-This repository is a shared engineering record and auditable source tree. It
-does not publish a finished mod version, installation package, GitHub Release,
-precompiled ASI/DLL, loader binary, or test ZIP. Internal build hashes document
-private test provenance; they are not download links or release endorsements.
+To update, close the game and replace `bin\ShadowEnginePatch.asi` with the new
+release file. To uninstall, close the game and delete that ASI. The generated
+log may also be deleted.
 
-Anyone may inspect and compile the source for research, subject to the license
-status below, but a self-compiled binary remains an unsupported experimental
-artifact and must not be represented as an official Shadow Engine release.
+## Reporting an issue
 
-## Evidence policy
+Preserve the complete, unedited `bin\ShadowEnginePatch.log` before launching
+the game again. Include your game/store version, installed lighting, traffic
+and graphics mods, reproduction steps, visible symptoms, approximate FPS and
+whether the game actually crashed. A missing shutdown marker alone does not
+prove a crash.
 
-Claims in this repository are classified as runtime-observed, statically
-confirmed, inferred, or untested. Raw game binaries, memory dumps and proprietary
-decompilation exports are not distributed. See [docs/EVIDENCE_POLICY.md](docs/EVIDENCE_POLICY.md).
+If practical, press **F8** while a visual failure is present and **F9** after it
+recovers. Extremely fast flicker may be impossible to capture; describe what
+you saw instead.
 
-## License status
+Reports can be sent through Nexus Mods or the
+[Watch Dogs Modding Discord](https://discord.gg/AQnVwkZ7k).
 
-No open-source license has been selected yet. Until one is added, normal
-copyright applies even though the repository is publicly readable. This must be
-resolved before accepting code contributions or advertising redistribution
-rights.
+[Video showcase](https://www.youtube.com/watch?v=4fGO-WEQN-Q)
 
+## Source and evidence
+
+The source is published for technical review and community research. This
+repository does not redistribute Ubisoft binaries, NexusTools, game dumps or
+decompilation exports. Claims are classified according to the
+[evidence policy](docs/EVIDENCE_POLICY.md), with detailed research retained in
+the [OKF knowledge index](docs/okf/index.md).
+
+No open-source license has been selected. Normal copyright therefore applies.
 This project is unaffiliated with Ubisoft. *Watch Dogs* and Disrupt are Ubisoft
 properties.

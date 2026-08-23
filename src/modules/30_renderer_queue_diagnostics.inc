@@ -26,7 +26,10 @@ static void trace_renderer_capacity(void *queue)
             (long)g_renderer_calls,queue,entries,active,faces,faces-1U,
             faces>TOTAL_LOCAL_MAPS?faces-TOTAL_LOCAL_MAPS:0U);
     }
-    if(now-g_last_residency_log_tick>=1000U) {
+    /* Public builds keep a low-frequency capacity heartbeat for support logs.
+     * Immediate first-use, overflow, clamp, and tail-integrity diagnostics are
+     * reported separately, so successful play does not need a line per second. */
+    if(now-g_last_residency_log_tick>=30000U) {
         append_log("STAGE_F_RESIDENCY rendererCall=%ld queue=%p entries=%u activeEntries=%u faces=%u extraMapsInUse=%u physicalMaps=24 overflow=%u B4=%ld A8=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
             (long)g_renderer_calls,queue,entries,active,faces,
             faces>ORIGINAL_LOCAL_MAPS?faces-ORIGINAL_LOCAL_MAPS:0U,
@@ -190,7 +193,7 @@ static void log_manual_queue_capture(const char *state,void *manager,void *queue
     if(!base) {
         append_log("STAGE_J_MANUAL_CAPTURE_END serial=%ld state=%s scannedEntries=0 scannedFaces=0 queueReadable=0",
             (long)serial,state);
-        log_manual_resource_snapshot(state,serial);
+        log_manual_external_slice_snapshot(state,serial);
         return;
     }
     for(entry_index=0;entry_index<scan_entries;++entry_index) {
@@ -221,8 +224,7 @@ static void log_manual_queue_capture(const char *state,void *manager,void *queue
     }
     append_log("STAGE_J_MANUAL_CAPTURE_END serial=%ld state=%s scannedEntries=%u scannedFaces=%u queueReadable=1",
         (long)serial,state,scan_entries,map_cursor);
-    log_manual_resource_snapshot(state,serial);
-    log_manual_lifecycle_snapshot(state,serial);
+    log_manual_external_slice_snapshot(state,serial);
 }
 
 static void poll_manual_capture(void *manager,void *queue,

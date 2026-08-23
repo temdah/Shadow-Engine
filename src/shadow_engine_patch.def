@@ -1,3 +1,4 @@
 LIBRARY ShadowEnginePatch
 EXPORTS
-    InitializeShadowEnginePatch @1
+    Init @1
+    OnBeforeEngineInit @2
