@@ -2,6 +2,7 @@
 
 ## 2026-08-24
 
+* **Release downloads**: Replaced expiring Actions artifacts with an immutable versioned GitHub Release that attaches the Nexus-ready ZIP and checksum on every successful `main` build.
 * **v2.0.0 release candidate**: Promoted the accepted `B4=25`, `A8=4`, 30-map policy after an extreme Global run showed no flicker or regression at 30 admissions/30 faces; byte comparison proved the 2.0.0 ASI changes only version strings and PE checksum from the tested v1.2.4 binary.
 * **v1.2.4 runtime result**: Tim reported substantially improved high-stress stability with no observed flicker; the guard safely bounded 402 requests up to 33 faces with no overflow, corruption, owner movement, late write, duplicate result, or release failure.
 * **v1.2.4 candidate**: Raised only coherent manager `B4` from 21 to 25 to test four additional dynamic residency positions; retained `A8=4`, 30 maps, all compatibility/layout/lifecycle mechanics, and passed every offline gate.
@@ -16,7 +17,7 @@
 * **v1.2.2 candidate**: Added a measured 30-map/31-entry physical layout with `B4=21`, `A8=4`, passes 17-30, external results 17-29, admission diagnostics, compile-time coupling checks, and a capacity-specific offline validator.
 * **Pressure result**: F8/F9 proved 17 dynamic-or-special plus four cached bindings during loss, zero cached bindings after recovery, 21/24 versus 20/24 faces, and no renderer clamp or lifecycle failure.
 * **Pressure diagnostics**: Distinguished upstream manager admission/cache pressure from renderer face-budget pressure and added aggregate F8/F9 measurements without changing engine policy.
-* **CI artifact**: Added a main-push GitHub Actions workflow that reproducibly builds the ASI and uploads the actual installable mod ZIP plus checksum without creating tags or GitHub Releases.
+* **CI artifact (superseded)**: Added the original main-push workflow that reproducibly built the ASI and uploaded the installable ZIP plus checksum as temporary Actions artifacts; versioned GitHub Releases now replace this delivery path.
 * **Release**: Promoted the validated architecture refactor to v1.2.1; only the embedded version identity and resulting PE checksum differ from the five-profile-tested ASI.
 * **Runtime validation**: The unchanged `ac74c2a` candidate passed all five supported runtime profiles, including a 20-minute Global stability run.
 * **Capacity evidence**: Extreme traffic reproduced temporary world-shadow loss near the current 24-face physical budget; retained as the next feature investigation.

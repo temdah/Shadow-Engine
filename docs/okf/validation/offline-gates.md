@@ -6,7 +6,7 @@ tags: [shadow-engine, validation, reproducibility, rollback]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T18:00:00+02:00
+  at: 2026-08-24T18:35:00+02:00
 sources:
   - id: equivalence-test
     resource: ../../../tests/validate_refactor.py
@@ -17,9 +17,9 @@ sources:
   - id: corpus-test
     resource: ../../../tests/validate_runtime_corpus.py
     title: Regional runtime corpus validator
-  - id: main-artifact-workflow
+  - id: main-release-workflow
     resource: ../../../.github/workflows/build-mod.yml
-    title: Main-branch installable artifact workflow
+    title: Main-branch installable release workflow
 ---
 
 # Gate set
@@ -38,8 +38,10 @@ sources:
 * Produce byte-identical binaries from two clean builds.
 * For engine-capacity or relocation changes, pass the [regional runtime corpus
   gate](runtime-corpus-gate.md) against all five preserved runtime identities.
-* On every push to `main`, build and upload the actual installable mod ZIP and
-  its checksum without creating a tag or GitHub Release.
+* On every push to `main`, build the actual Nexus-ready mod ZIP and checksum,
+  then create the matching version tag and GitHub Release with both files as
+  permanent release assets. Refuse to overwrite an existing version so every
+  new iteration requires a version bump.
 
 These checks detect behavioral drift visible in source, executable layout, and
 mutation mechanics. They cannot establish that injected execution or rendered
