@@ -6,7 +6,7 @@ tags: [shadow-engine, validation, reproducibility, rollback]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T09:16:36+02:00
+  at: 2026-08-24T17:10:00+02:00
 sources:
   - id: equivalence-test
     resource: ../../../tests/validate_refactor.py
@@ -25,10 +25,10 @@ sources:
 # Gate set
 
 * In equivalence mode, preserve the release policy constants.
-* In `--capacity-target-v123` mode, require exactly 30 maps, 31 queue entries,
-  `B4=21`, `A8=4`, 28 external pass slots, and 13 external results.
+* In `--policy-target-v124` mode, require exactly 30 maps, 31 queue entries,
+  `B4=25`, `A8=4`, 28 external pass slots, and 13 external results.
 * Preserve all active signatures and the complete Asia explicit map.
-* Preserve all 46 relocation source references; capacity mode requires each
+* Preserve all 46 relocation source references; policy-target mode requires each
   target to follow its owning region's `0x24C0`, `0x24C4`, or `0x24C8`
   per-map stride. Never apply one uniform stride across all three regions.
 * Preserve external-result release fallback and enforce the 32-bit written-mask

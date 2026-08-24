@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "1.2.3"
+#define PATCH_VERSION "1.2.4"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -66,7 +66,9 @@
 #define TOTAL_LOCAL_MAPS 30U
 #define PHYSICAL_QUEUE_ENTRIES (TOTAL_LOCAL_MAPS+1U)
 #define QUEUE_ARRAY_CLEAR_BYTES (4U+TOTAL_LOCAL_MAPS*4U)
-#define TARGET_DYNAMIC_B4 21U
+/* Keep four more dynamic candidates resident at the manager boundary. The
+ * renderer's priority-prefix guard remains the sole physical 30-face bound. */
+#define TARGET_DYNAMIC_B4 25U
 #define TARGET_CACHE_A8 4U
 #define OWNER_VECTOR_RESERVE_CAPACITY 8U
 #define SHADOW_PASS_CATEGORY      0x0CU
@@ -127,6 +129,9 @@
 #endif
 #if TOTAL_LOCAL_MAPS > 255U || TARGET_DYNAMIC_B4 > 255U || QUEUE_ARRAY_CLEAR_BYTES > 255U
 #error patched immediate no longer fits its encoded byte field
+#endif
+#if TARGET_CACHE_A8 > OWNER_VECTOR_RESERVE_CAPACITY
+#error logical cached-owner ceiling exceeds the pre-reserved owner vector
 #endif
 
 #define STRING_ASSIGN_RVA         0x000D60B0ULL

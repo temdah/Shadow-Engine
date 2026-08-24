@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.4
+
+- Raises the coherent dynamic manager target from `B4=21` to `B4=25` to test
+  four additional high-quality residency positions under extreme traffic and
+  emergency-light pressure.
+- Retains the validated v1.2.3 30-map layout, `A8=4` coarse-owner policy,
+  regional profiles, hooks, queue guard, and external-result lifecycle.
+- Adds an explicit compile-time and unit-test invariant that the logical cache
+  ceiling cannot exceed the pre-reserved owner-vector capacity.
+
 ## 1.2.3
 
 ### Fixed

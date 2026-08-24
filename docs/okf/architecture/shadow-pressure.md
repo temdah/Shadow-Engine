@@ -6,7 +6,7 @@ tags: [shadow-engine, shadows, admission, cache, capacity]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T10:30:00+02:00
+  at: 2026-08-24T17:10:00+02:00
 sources:
   - id: manager-source
     resource: ../../../src/modules/20_manager_owner_profile.inc
@@ -17,6 +17,9 @@ sources:
   - id: matrix
     resource: ../validation/regional-runtime-matrix.md
     title: Regional runtime matrix
+  - id: historical-capability
+    resource: ../../SHADOW_ENGINE_PATCH_PROVEN_CAPABILITIES_2026-08-13.md
+    title: Proven Shadow Engine capabilities and historical pressure findings
 ---
 
 # Boundaries
@@ -25,9 +28,10 @@ Manager admission and cached-owner reconciliation happen before renderer queue
 submission. A light can lose a dynamic position or cached representation even
 when the later queue remains below 24 physical faces.
 
-The accepted policy uses `B4=16`, approximately 15 ordinary dynamic positions
-when caching is enabled, and `A8=4`, four retained cached owners. Cached owners
-do not add high-resolution maps; they share the engine's coarse refresh lane.
+The v1.2.3 release policy uses `B4=21`, approximately 20 ordinary dynamic
+positions when caching is enabled, and `A8=4`, four retained cached owners.
+Cached owners do not add high-resolution maps; they share the engine's coarse
+refresh lane.
 
 # Current evidence and next measurement
 
@@ -66,6 +70,33 @@ The 30-map target stays inside the proven 64-slot pass registry: passes 17-30
 occupy slots 34-61 and require maximum key `0x3D0C`, below stored maximum
 `0x3F00`. The whole-record face guard remains active above 30 faces.
 
+# v1.2.4 isolated residency experiment
+
+The five-profile v1.2.3 calibration reproduced rapid spotlight/moon-shadow
+eviction and reacquisition at 26 manager admissions while the renderer used
+only 26 of 30 physical faces. Raising `A8` is rejected as the response because
+it retains more owners only in the coarse shared-refresh lane.
+
+v1.2.4 changes only coherent manager `B4` from 21 to 25, targeting four more
+ordinary dynamic positions before manager eviction. It retains `A8=4`, all 30
+maps, the 31-entry queue, passes, results, profiles, hooks, and lifecycle code.
+If the manager produces more than 30 cumulative faces, the existing
+priority-ordered whole-record guard remains the physical safety boundary. This
+candidate tests dynamic residency stability; it does not claim that all
+admitted records can render simultaneously.[^historical-capability]
+
+# Knowledge preflight
+
+The v1.2.4 investigation searched current source, active public/private OKF,
+and archived provenance for `B4`, `A8`, admission, residency, cached owners,
+owner-vector reserve, eviction, and the 26-admission capture. The retained
+invariants are physical owner reserve eight, logical `A8=4`, stable owner-vector
+base during admission, 30 physical faces, and priority-prefix face guarding.
+An `A8` increase and another blind map increase were rejected. Runtime impact
+on the remaining flicker is unresolved until Tim performs the representative
+high-load test.
+
 [^matrix]: Regional runtime matrix
 [^manager-source]: Shadow manager and owner-profile module
 [^renderer-source]: Renderer queue diagnostics module
+[^historical-capability]: Proven Shadow Engine capabilities and historical pressure findings

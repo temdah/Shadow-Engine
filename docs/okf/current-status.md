@@ -6,7 +6,7 @@ tags: [shadow-engine, status, runtime, refactor]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T10:27:50+02:00
+  at: 2026-08-24T17:10:00+02:00
 sources:
   - id: patch-source
     resource: ../../src/shadow_engine_patch.c
@@ -18,13 +18,13 @@ sources:
 
 # Accepted behavior
 
-Shadow Engine v1.2.1 is the accepted release baseline. One policy supports
+Shadow Engine v1.2.3 is the accepted release baseline. One policy supports
 Global/04DF, Shev/A4EE, VMPless, Complete Edition, and Asia/Miru while unknown
 or ambiguous builds fail closed.
 
 The patch preserves full native light passthrough, expands the established
 shadow-manager path, and routes generation-safe external `SliceExecute` results
-for indices 17-23.
+for indices 17-29.
 
 # Refactor gate
 
@@ -79,15 +79,25 @@ transaction topology are unchanged.
 
 A subsequent frozen-candidate calibration matrix passed all five supported
 profiles and matched the offline compatibility prediction. This empirically
-supports the reduced future retest tier for shared policy changes. v1.2.1
-remains the accepted published fallback only until v1.2.3 is deliberately
-promoted.
+supports the reduced future retest tier for shared policy changes. v1.2.3 was
+published to `main` at validated release commit `33490f1`.
 
 v1.2.3 greatly reduces the original prolonged extreme-load shadow loss but does
 not eliminate all pressure artifacts. Complete Edition reproduced rapid
 spotlight/moon-shadow eviction and reacquisition at 26 manager admissions while
 only 26/30 faces were occupied. The next investigation therefore owns manager
 admission/residency stability rather than another blind physical-map increase.
+
+v1.2.4 is the isolated manager-residency candidate. It changes coherent `B4`
+from 21 to 25 while retaining `A8=4`, all 30 maps, every layout relocation,
+profile, hook, queue guard, and result-lifecycle path. All offline policy,
+transaction, five-profile corpus, unit, and reproducible-build gates pass. It
+requires one Global/04DF extreme-load visual run before acceptance.
+
+Candidate ASI SHA-256:
+`05748294FEF212F359C8FBFEED1448F21AB58C6789A2D32EDF252AD8C2A6CBA6`.
+Candidate Nexus ZIP SHA-256:
+`2DC2028D64B4C609278A21F51684058472251AF285C2505DE35A8DB79148ECFA`.
 
 Corrected candidate source commit: `f31769d`. Reproducible ASI SHA-256:
 `5510E9F34F62DD61F6C49E4F946664A9241A743C9E989B98DABF335506ED4CC2`.

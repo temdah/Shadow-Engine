@@ -25,6 +25,12 @@ class CapacityLayoutTests(unittest.TestCase):
         self.assertEqual(
             len(corpus.parse_tail_patches(self.state, self.extra_maps)), 46)
 
+    def test_cached_owner_ceiling_fits_pre_reserved_vector(self) -> None:
+        logical = corpus.integer_define(self.state, "TARGET_CACHE_A8")
+        physical = corpus.integer_define(
+            self.state, "OWNER_VECTOR_RESERVE_CAPACITY")
+        self.assertLessEqual(logical, physical)
+
     def test_rejects_uniform_stride_for_first_mapping_region(self) -> None:
         correct = 0x270D0 + self.extra_maps * 0x24C0
         uniform = 0x270D0 + self.extra_maps * 0x24C8

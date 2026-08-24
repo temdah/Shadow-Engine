@@ -30,11 +30,11 @@ EXPECTED_PROFILES = {
 
 RETIRED_MODULES = {"40_render_record_repair.inc", "50_resource_lifecycle_trace.inc"}
 
-V123_CAPACITY_POLICY = {
+V124_POLICY_TARGET = {
     "ORIGINAL_LOCAL_MAPS": "16U",
     "EXTRA_LOCAL_MAPS": "14U",
     "TOTAL_LOCAL_MAPS": "30U",
-    "TARGET_DYNAMIC_B4": "21U",
+    "TARGET_DYNAMIC_B4": "25U",
     "TARGET_CACHE_A8": "4U",
     "OWNER_VECTOR_RESERVE_CAPACITY": "8U",
     "RENDER_QUEUE_ENTRY_BYTES": "0x24C0U",
@@ -96,7 +96,7 @@ def installed_hooks(source: str) -> set[str]:
 def validate(
     baseline: pathlib.Path,
     candidate: pathlib.Path,
-    capacity_target_v123: bool,
+    policy_target_v124: bool,
 ) -> list[str]:
     base_source, _ = read_tree(baseline)
     candidate_source, candidate_files = read_tree(candidate)
@@ -106,8 +106,8 @@ def validate(
     candidate_defines = definitions(candidate_source)
     for name in sorted(POLICY_CONSTANTS):
         expected = (
-            V123_CAPACITY_POLICY[name]
-            if capacity_target_v123
+            V124_POLICY_TARGET[name]
+            if policy_target_v124
             else base_defines.get(name)
         )
         assert candidate_defines.get(name) == expected, (
@@ -116,7 +116,7 @@ def validate(
         )
     checks.append(
         f"policy constants: {len(POLICY_CONSTANTS)} "
-        + ("match v1.2.3 capacity target" if capacity_target_v123 else "unchanged")
+        + ("match v1.2.4 policy target" if policy_target_v124 else "unchanged")
     )
 
     base_rvas = {key: value for key, value in base_defines.items() if key.endswith("_RVA")}
@@ -127,7 +127,7 @@ def validate(
     tail_pattern = r"\{\s*0x([0-9A-Fa-f]+)ULL,\s*0x([0-9A-Fa-f]+),\s*0x([0-9A-Fa-f]+)\s*\}"
     base_tails = re.findall(tail_pattern, array_block(base_source, "g_tail_patches"))
     candidate_tails = re.findall(tail_pattern, array_block(candidate_source, "g_tail_patches"))
-    if capacity_target_v123:
+    if policy_target_v124:
         assert len(base_tails) == len(candidate_tails) == 46, (
             f"queue-tail count changed: baseline={len(base_tails)} "
             f"candidate={len(candidate_tails)}"
@@ -228,8 +228,8 @@ def validate(
     checks.append("transactions: all executable writes/allocations routed; two phased rollbacks")
 
     shared = candidate_files["src/modules/00_shared_config_state.inc"]
-    if capacity_target_v123:
-        assert '#define PATCH_VERSION "1.2.3"' in shared
+    if policy_target_v124:
+        assert '#define PATCH_VERSION "1.2.4"' in shared
         assert "#define PHYSICAL_QUEUE_ENTRIES (TOTAL_LOCAL_MAPS+1U)" in shared
         assert "#define QUEUE_ARRAY_CLEAR_BYTES (4U+TOTAL_LOCAL_MAPS*4U)" in shared
         expansion = candidate_files["src/modules/60_engine_expansion.inc"]
@@ -237,8 +237,8 @@ def validate(
         assert "(unsigned char)TARGET_DYNAMIC_B4" in expansion
         assert "EXTRA_SLICE_RESULT_COUNT" in candidate_source
         checks.append(
-            "v1.2.3 capacity: 30 maps, 31 queue entries, 14 external maps, "
-            "28 pass slots, 13 external results, B4=21, A8=4"
+            "v1.2.4 policy: 30 maps, 31 queue entries, 14 external maps, "
+            "28 pass slots, 13 external results, B4=25, A8=4"
         )
     for state_type in (
         "BootstrapState", "HookBindings", "ManagerRendererState",
@@ -274,13 +274,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", required=True, type=pathlib.Path)
     parser.add_argument("--candidate", required=True, type=pathlib.Path)
-    parser.add_argument("--capacity-target-v123", action="store_true")
+    parser.add_argument("--policy-target-v124", action="store_true")
     args = parser.parse_args()
     try:
         checks = validate(
             args.baseline.resolve(),
             args.candidate.resolve(),
-            args.capacity_target_v123,
+            args.policy_target_v124,
         )
     except (AssertionError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)

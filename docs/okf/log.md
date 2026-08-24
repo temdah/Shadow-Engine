@@ -2,6 +2,8 @@
 
 ## 2026-08-24
 
+* **v1.2.4 candidate**: Raised only coherent manager `B4` from 21 to 25 to test four additional dynamic residency positions; retained `A8=4`, 30 maps, all compatibility/layout/lifecycle mechanics, and passed every offline gate.
+* **v1.2.3 publication**: Fast-forwarded the fully calibrated release commit `33490f1` to `main`, triggering the installable-mod artifact workflow.
 * **v1.2.3 five-profile calibration**: The frozen candidate matched the offline compatibility prediction on all five profiles; established the corpus-plus-representative-run tier for future shared-policy changes and exposed one delayed-activation classifier false negative.
 * **Residual pressure limit**: Complete Edition reproduced rapid spotlight/moon-shadow eviction and reacquisition at saturated manager admission while physical occupancy remained 26/30, directing the next investigation toward admission/residency churn.
 * **v1.2.3 runtime result**: Global/04DF passed an extreme-load scene without the previous shadow-quality reduction or disappearance; one distant flicker remains unclassified.

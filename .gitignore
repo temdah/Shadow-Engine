@@ -20,6 +20,8 @@ docs/okf/workspace-reference.md
 # Local build and packaging output
 build/
 build_repro/
+__pycache__/
+*.pyc
 dist/
 package/
 *.asi
