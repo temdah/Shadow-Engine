@@ -8,13 +8,16 @@ set(SHADOW_ENGINE_MAIN
 
 set(SHADOW_ENGINE_MODULES
     src/modules/00_shared_config_state.inc
+    src/modules/05_runtime_profiles.inc
     src/modules/10_runtime_primitives.inc
+    src/modules/15_patch_transaction.inc
     src/modules/20_manager_owner_profile.inc
     src/modules/30_renderer_queue_diagnostics.inc
-    src/modules/40_render_record_repair.inc
-    src/modules/50_resource_lifecycle_trace.inc
+    src/modules/40_external_slice_results.inc
     src/modules/60_engine_expansion.inc
+    src/modules/65_runtime_preflight.inc
     src/modules/70_bootstrap_orchestration.inc
+    src/modules/80_runtime_entry.inc
     src/modules/README.md)
 
 set_source_files_properties(${SHADOW_ENGINE_MODULES}

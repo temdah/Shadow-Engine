@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.1
+
+### Changed
+
+- Refactored the runtime patch into cohesive profile, bootstrap, subsystem,
+  lifecycle, diagnostics and transaction modules without changing the
+  established 24-map/24-face shadow policy.
+- Consolidated mutable runtime state under explicit subsystem ownership and
+  reduced bootstrap to orchestration.
+- Added transactional rollback for reversible patch writes so a failed commit
+  does not leave a partially modified engine.
+
+### Validation
+
+- The v1.2.1 release ASI differs from the five-profile-tested refactor binary
+  only at the two embedded version characters and the resulting PE checksum.
+- Retested the unchanged refactor build on all five supported executable
+  variants. All five launched, activated the patch and remained stable;
+  Global/04DF included a 20-minute gameplay run.
+- Extreme traffic testing identified the existing 24-face physical budget as
+  the next fidelity bottleneck; v1.2.1 intentionally keeps capacity policy
+  unchanged.
+
 ## 1.2.0
 
 ### Added

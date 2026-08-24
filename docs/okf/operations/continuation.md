@@ -6,7 +6,7 @@ tags: [shadow-engine, continuation, testing, capacity]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T00:00:00+02:00
+  at: 2026-08-24T08:03:00+02:00
 sources:
   - id: refactor-notes
     resource: ../../../REFACTOR_NOTES.md
@@ -15,16 +15,17 @@ sources:
 
 # Runtime-equivalence gate
 
-1. Freeze one candidate commit and ASI hash.
-2. Pass all [offline gates](../validation/offline-gates.md).
-3. Run that candidate through the complete [regional matrix](../validation/regional-runtime-matrix.md).
-4. Preserve and review every log before declaring equivalence.
+Completed for commit `ac74c2a`: one frozen ASI passed all
+[offline gates](../validation/offline-gates.md) and the complete
+[regional matrix](../validation/regional-runtime-matrix.md). Preserve this
+commit as the feature baseline until the next candidate passes proportionate
+offline and runtime validation.
 
 # Feature investigation
 
-Only after equivalence, instrument the path affected by emergency-light shadow
-pressure: admission, owner reservation, live resources, queue occupancy,
-residency, result routing, and release lifetime.
+Instrument the path affected by emergency-light and dense-traffic shadow
+pressure: the 24-face physical budget, admission, owner reservation, live
+resources, queue occupancy, residency, result routing, and release lifetime.
 
 Change one bounded, proven bottleneck at a time. Keep regional differences in
 `RuntimeProfile`; do not add profile-specific engine policy. Repeat offline

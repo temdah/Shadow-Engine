@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "1.2.0"
+#define PATCH_VERSION "1.2.1"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U

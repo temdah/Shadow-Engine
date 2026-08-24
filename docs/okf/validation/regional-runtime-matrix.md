@@ -1,12 +1,12 @@
 ---
 type: Validation Plan
 title: Regional Runtime Matrix
-description: One-candidate in-game validation across every supported runtime profile.
+description: Completed one-candidate in-game validation across every supported runtime profile.
 tags: [shadow-engine, validation, runtime, compatibility]
-status: draft
+status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T00:00:00+02:00
+  at: 2026-08-24T08:03:00+02:00
 sources:
   - id: profiles
     resource: ../../../src/modules/05_runtime_profiles.inc
@@ -34,3 +34,14 @@ and visual judgment.
 The matrix passes only when all five profiles pass one frozen candidate. A
 failure on one profile blocks the candidate without invalidating previously
 accepted release behavior.
+
+# Result
+
+The unchanged `ac74c2a` candidate passed Global/04DF, Shev/A4EE, VMPless,
+Complete Edition, and Asia/Miru on 2026-08-24. No profile crashed or showed a
+baseline shadow regression. Global included approximately 20 minutes of stable
+gameplay.
+
+Extreme traffic on VMPless and Complete Edition exposed temporary world-shadow
+loss near the 24-face physical budget. This is retained as the next capacity
+investigation rather than a regional compatibility failure.
