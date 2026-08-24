@@ -133,6 +133,8 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     assert '"modules/05_runtime_profiles.inc"' in aggregator
     assert '"modules/15_patch_transaction.inc"' in aggregator
     assert '"modules/40_external_slice_results.inc"' in aggregator
+    assert '"modules/65_runtime_preflight.inc"' in aggregator
+    assert '"modules/80_runtime_entry.inc"' in aggregator
     for retired in RETIRED_MODULES:
         assert retired not in aggregator and not any(path.endswith(retired) for path in candidate_files), (
             f"retired module still compiled: {retired}"
@@ -170,6 +172,21 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     assert "static ShadowEngineContext g_shadow_engine;" in shared
     assert not re.search(r"^static\s+volatile\s+LONG\s+g_", shared, re.M)
     checks.append("state ownership: one root context with five cohesive subsystem states")
+
+    preflight = candidate_files["src/modules/65_runtime_preflight.inc"]
+    orchestration = candidate_files[bootstrap_path]
+    runtime_entry = candidate_files["src/modules/80_runtime_entry.inc"]
+    assert "select_runtime_profile(" in preflight
+    assert "run_signature_probe(" in preflight
+    assert "DllMain(" not in preflight
+    assert "prepare_early_patch_plan(" in orchestration
+    assert "commit_early_patch_plan(" in orchestration
+    assert "stage_e_worker(" not in orchestration
+    assert len(orchestration.splitlines()) < 350
+    assert "stage_e_worker(" in runtime_entry
+    assert "DllMain(" in runtime_entry
+    assert "select_runtime_profile(" not in runtime_entry
+    checks.append("cohesion: preflight, patch orchestration, and runtime entry separated")
     return checks
 
 

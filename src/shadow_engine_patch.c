@@ -14,4 +14,6 @@
 #include "modules/30_renderer_queue_diagnostics.inc"
 #include "modules/40_external_slice_results.inc"
 #include "modules/60_engine_expansion.inc"
+#include "modules/65_runtime_preflight.inc"
 #include "modules/70_bootstrap_orchestration.inc"
+#include "modules/80_runtime_entry.inc"

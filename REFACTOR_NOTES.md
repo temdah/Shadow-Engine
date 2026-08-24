@@ -26,6 +26,10 @@ Completed structural slice:
 - Consolidated mutable runtime storage into one `ShadowEngineContext` with
   bootstrap, hook-binding, manager/renderer, resource/pass and external-result
   ownership boundaries.
+- Split the former 1,239-line bootstrap module into 678 lines of runtime
+  preflight, 278 lines of patch orchestration and 287 lines of runtime entry /
+  completion monitoring. Patch orchestration now owns ordering, not profile
+  recovery or lifecycle reporting implementations.
 
 Deliberately unchanged:
 

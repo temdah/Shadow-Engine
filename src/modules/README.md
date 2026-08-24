@@ -24,8 +24,12 @@ The module order is a contract:
    result storage, consumption, release and bounded F8/F9 diagnostics.
 8. `60_engine_expansion.inc` owns maps, passes, queue layout, routing relays and
    scheduler writes.
-9. `70_bootstrap_orchestration.inc` owns signature preflight, phased startup and
-   exported entry points.
+9. `65_runtime_preflight.inc` owns PE/profile selection, read-only unknown-build
+   mapping, helper recovery and complete mutation-site validation.
+10. `70_bootstrap_orchestration.inc` owns immutable patch-plan preparation and
+    transactional early/deferred installation only.
+11. `80_runtime_entry.inc` owns NexusTools lifecycle monitoring, completion
+    proof, exported entry points, fallback startup and `DllMain`.
 
 Later modules may call earlier helpers and the forward-declared hook entry
 points in module 00. Earlier modules must not depend on implementations in later
