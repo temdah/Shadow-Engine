@@ -8,7 +8,8 @@ initialization order or hook trampoline behavior.
 The module order is a contract:
 
 1. `00_shared_config_state.inc` owns shared engine constants, hook signatures,
-   active bounded state and forward declarations.
+   the root `ShadowEngineContext`, five cohesive subsystem state objects and
+   forward declarations.
 2. `05_runtime_profiles.inc` owns the five immutable PE identities, clustered
    or explicit RVA strategy, helper RVAs and per-profile detour prologue.
 3. `10_runtime_primitives.inc` owns logging, memory checks, atomic helpers and

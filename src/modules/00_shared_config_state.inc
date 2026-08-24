@@ -220,105 +220,231 @@ static const TailPatch g_tail_patches[] = {
 };
 
 
-static HMODULE g_self;
-static LONG g_initialized;
-static volatile LONG g_nexus_init_calls;
-static volatile LONG g_nexus_entry_kind;
-static volatile LONG g_dllmain_fallback_attempts;
-static void *volatile g_nexus_interface;
-static BootstrapSnapshot g_snapshot;
-static unsigned char *g_disrupt_base;
-static ResourceConstructorFn g_original_resource_constructor;
-static RegisterPassFn g_original_register_pass;
-static ShadowManagerFn g_original_manager;
-static ProfileCallbackFn g_profile_callback;
-static OwnerVectorReserveFn g_owner_vector_reserve;
-static RendererQueueFn g_original_renderer_queue;
-static ResourceWrapperFn g_original_resource_wrapper;
-static FaceCostReaderFn g_original_face_cost_reader;
-static FrameBuilderFn g_original_frame_builder;
-static PostCallObjectRenderersFn g_original_post_call_object_renderers;
-static RenderRecordReleaseFn g_original_render_record_release;
-static RenderRecordConstructorFn g_original_render_record_constructor;
-static GetAsyncKeyStateFn g_get_async_key_state;
-static volatile LONG g_profile_state;
-static volatile LONG g_manager_calls;
-static volatile LONG g_downstream_state;
-static volatile LONG g_live_a8_ready_logged;
-static volatile LONG g_renderer_hook_state;
-static volatile LONG g_renderer_calls;
-static volatile LONG g_extra_face_use_seen;
-static volatile LONG g_null_face_cost_skips;
-static volatile LONG g_owner_reserve_state;
-static volatile LONG g_owner_reserve_fail_closed;
-static volatile LONG g_owner_base_changed_during_manager;
-static volatile LONG g_owner_capacity_before;
-static volatile LONG g_owner_capacity_after;
-static volatile LONG g_owner_reserve_failure_logged;
-static volatile LONG g_face_budget_clamps;
-static volatile LONG g_face_budget_dropped_entries;
-static volatile LONG g_face_budget_peak_requested;
-static volatile LONG g_tail_invalid_before_renderer;
-static volatile LONG g_tail_invalid_after_renderer;
-static volatile LONG g_pass_table_state;
-static volatile LONG g_pass_table_stored_max_key;
-static volatile LONG g_pass_table_slots;
-static volatile LONG g_pass_table_added_nonzero;
-static volatile LONG g_pass_table_added_distinct;
-static void *g_pass_table_base;
-static LifecycleRecordSnapshot g_lifecycle_records[LIFECYCLE_RECORD_SLOTS];
-static volatile LONG g_lifecycle_constructor_calls;
-static volatile LONG g_lifecycle_builder_calls;
-static volatile LONG g_lifecycle_release_calls;
-static volatile LONG g_lifecycle_record_slot_misses;
-static volatile LONG g_postcall_calls;
-static volatile LONG g_slice_result_guard_state;
-static volatile LONG g_slice_result_native_nonnull;
-static volatile LONG g_slice_result_native_null;
-static volatile LONG g_slice_result_external_nonnull;
-static volatile LONG g_slice_result_external_null;
-static volatile LONG g_slice_result_external_store_failures;
-static volatile LONG g_slice_result_external_duplicate_indices;
-static volatile LONG g_slice_result_external_duplicate_resources;
-static volatile LONG g_slice_result_external_stale_lineage;
-static volatile LONG g_slice_result_external_late_writes;
-static volatile LONG g_slice_result_external_consumed_results;
-static volatile LONG g_slice_result_external_release_events;
-static volatile LONG g_slice_result_external_release_resources;
-static volatile LONG g_slice_result_external_release_failures;
-static volatile LONG g_slice_result_external_release_fallbacks;
-static volatile LONG g_slice_result_external_reset_pending;
-static volatile LONG g_last_external_slice_summary_tick;
-static volatile LONG g_lifecycle_hooks_state;
-static volatile LONG g_f8_was_down;
-static volatile LONG g_f9_was_down;
-static volatile LONG g_session_log_state;
-static DWORD g_last_residency_probe_tick;
-static DWORD g_last_residency_log_tick;
-static volatile LONG g_hooks_installed;
-static volatile LONG g_resource_hits;
-static volatile LONG g_register_hits;
-static volatile LONG g_shadow_hits;
-static volatile LONG g_shadow_alpha_hits;
-static volatile LONG g_last_native_shadow_seen;
-static volatile LONG g_last_native_alpha_seen;
-static volatile LONG g_native_nonzero_handles;
-static volatile LONG g_native_distinct_handles;
-static volatile LONG g_range_resource_state;
-static volatile LONG g_range_pass_state;
-static volatile LONG g_range_nonzero_handles;
-static volatile LONG g_range_distinct_handles;
-static volatile LONG g_routing_state;
-static volatile LONG g_observed_scheduler_b4;
-static volatile LONG g_observed_cache_a8;
-static void *g_last_resource_manager;
-static uint32_t g_native_handles[ORIGINAL_LOCAL_MAPS];
-static uint32_t g_extra_handles[EXTRA_LOCAL_MAPS];
-static uint32_t g_shadow_map_ids[TOTAL_LOCAL_MAPS];
-static unsigned char g_extra_companions[EXTRA_LOCAL_MAPS][16]
-    __attribute__((aligned(16)));
-static uint64_t g_extra_shadow_names[EXTRA_LOCAL_MAPS];
-static uint64_t g_extra_alpha_names[EXTRA_LOCAL_MAPS];
+typedef struct BootstrapState {
+    HMODULE self;
+    LONG initialized;
+    volatile LONG nexus_init_calls;
+    volatile LONG nexus_entry_kind;
+    volatile LONG dllmain_fallback_attempts;
+    void *volatile nexus_interface;
+    BootstrapSnapshot snapshot;
+    unsigned char *disrupt_base;
+    volatile LONG downstream_state;
+    volatile LONG session_log_state;
+    volatile LONG hooks_installed;
+} BootstrapState;
+
+typedef struct HookBindings {
+    ResourceConstructorFn original_resource_constructor;
+    RegisterPassFn original_register_pass;
+    ShadowManagerFn original_manager;
+    ProfileCallbackFn profile_callback;
+    OwnerVectorReserveFn owner_vector_reserve;
+    RendererQueueFn original_renderer_queue;
+    ResourceWrapperFn original_resource_wrapper;
+    FaceCostReaderFn original_face_cost_reader;
+    FrameBuilderFn original_frame_builder;
+    PostCallObjectRenderersFn original_post_call_object_renderers;
+    RenderRecordReleaseFn original_render_record_release;
+    RenderRecordConstructorFn original_render_record_constructor;
+    GetAsyncKeyStateFn get_async_key_state;
+} HookBindings;
+
+typedef struct ManagerRendererState {
+    volatile LONG profile_state;
+    volatile LONG manager_calls;
+    volatile LONG live_a8_ready_logged;
+    volatile LONG renderer_hook_state;
+    volatile LONG renderer_calls;
+    volatile LONG extra_face_use_seen;
+    volatile LONG null_face_cost_skips;
+    volatile LONG owner_reserve_state;
+    volatile LONG owner_reserve_fail_closed;
+    volatile LONG owner_base_changed_during_manager;
+    volatile LONG owner_capacity_before;
+    volatile LONG owner_capacity_after;
+    volatile LONG owner_reserve_failure_logged;
+    volatile LONG face_budget_clamps;
+    volatile LONG face_budget_dropped_entries;
+    volatile LONG face_budget_peak_requested;
+    volatile LONG tail_invalid_before_renderer;
+    volatile LONG tail_invalid_after_renderer;
+    volatile LONG observed_scheduler_b4;
+    volatile LONG observed_cache_a8;
+    volatile LONG f8_was_down;
+    volatile LONG f9_was_down;
+    DWORD last_residency_probe_tick;
+    DWORD last_residency_log_tick;
+} ManagerRendererState;
+
+typedef struct ResourcePassState {
+    volatile LONG pass_table_state;
+    volatile LONG pass_table_stored_max_key;
+    volatile LONG pass_table_slots;
+    volatile LONG pass_table_added_nonzero;
+    volatile LONG pass_table_added_distinct;
+    void *pass_table_base;
+    volatile LONG resource_hits;
+    volatile LONG register_hits;
+    volatile LONG shadow_hits;
+    volatile LONG shadow_alpha_hits;
+    volatile LONG last_native_shadow_seen;
+    volatile LONG last_native_alpha_seen;
+    volatile LONG native_nonzero_handles;
+    volatile LONG native_distinct_handles;
+    volatile LONG range_resource_state;
+    volatile LONG range_pass_state;
+    volatile LONG range_nonzero_handles;
+    volatile LONG range_distinct_handles;
+    volatile LONG routing_state;
+    void *last_resource_manager;
+    uint32_t native_handles[ORIGINAL_LOCAL_MAPS];
+    uint32_t extra_handles[EXTRA_LOCAL_MAPS];
+    uint32_t shadow_map_ids[TOTAL_LOCAL_MAPS];
+    unsigned char extra_companions[EXTRA_LOCAL_MAPS][16]
+        __attribute__((aligned(16)));
+    uint64_t extra_shadow_names[EXTRA_LOCAL_MAPS];
+    uint64_t extra_alpha_names[EXTRA_LOCAL_MAPS];
+} ResourcePassState;
+
+typedef struct ExternalResultState {
+    LifecycleRecordSnapshot lifecycle_records[LIFECYCLE_RECORD_SLOTS];
+    volatile LONG lifecycle_constructor_calls;
+    volatile LONG lifecycle_builder_calls;
+    volatile LONG lifecycle_release_calls;
+    volatile LONG lifecycle_record_slot_misses;
+    volatile LONG postcall_calls;
+    volatile LONG slice_result_guard_state;
+    volatile LONG slice_result_native_nonnull;
+    volatile LONG slice_result_native_null;
+    volatile LONG slice_result_external_nonnull;
+    volatile LONG slice_result_external_null;
+    volatile LONG slice_result_external_store_failures;
+    volatile LONG slice_result_external_duplicate_indices;
+    volatile LONG slice_result_external_duplicate_resources;
+    volatile LONG slice_result_external_stale_lineage;
+    volatile LONG slice_result_external_late_writes;
+    volatile LONG slice_result_external_consumed_results;
+    volatile LONG slice_result_external_release_events;
+    volatile LONG slice_result_external_release_resources;
+    volatile LONG slice_result_external_release_failures;
+    volatile LONG slice_result_external_release_fallbacks;
+    volatile LONG slice_result_external_reset_pending;
+    volatile LONG last_external_slice_summary_tick;
+    volatile LONG lifecycle_hooks_state;
+} ExternalResultState;
+
+typedef struct ShadowEngineContext {
+    BootstrapState bootstrap;
+    HookBindings hooks;
+    ManagerRendererState renderer;
+    ResourcePassState resources;
+    ExternalResultState external_results;
+} ShadowEngineContext;
+
+static ShadowEngineContext g_shadow_engine;
+
+/* Transitional aliases preserve the already-validated hook expressions while
+ * storage ownership moves into cohesive subsystem contexts. Remove aliases one
+ * module at a time only after the regional runtime matrix validates this layout. */
+#define g_self g_shadow_engine.bootstrap.self
+#define g_initialized g_shadow_engine.bootstrap.initialized
+#define g_nexus_init_calls g_shadow_engine.bootstrap.nexus_init_calls
+#define g_nexus_entry_kind g_shadow_engine.bootstrap.nexus_entry_kind
+#define g_dllmain_fallback_attempts g_shadow_engine.bootstrap.dllmain_fallback_attempts
+#define g_nexus_interface g_shadow_engine.bootstrap.nexus_interface
+#define g_snapshot g_shadow_engine.bootstrap.snapshot
+#define g_disrupt_base g_shadow_engine.bootstrap.disrupt_base
+#define g_downstream_state g_shadow_engine.bootstrap.downstream_state
+#define g_session_log_state g_shadow_engine.bootstrap.session_log_state
+#define g_hooks_installed g_shadow_engine.bootstrap.hooks_installed
+#define g_original_resource_constructor g_shadow_engine.hooks.original_resource_constructor
+#define g_original_register_pass g_shadow_engine.hooks.original_register_pass
+#define g_original_manager g_shadow_engine.hooks.original_manager
+#define g_profile_callback g_shadow_engine.hooks.profile_callback
+#define g_owner_vector_reserve g_shadow_engine.hooks.owner_vector_reserve
+#define g_original_renderer_queue g_shadow_engine.hooks.original_renderer_queue
+#define g_original_resource_wrapper g_shadow_engine.hooks.original_resource_wrapper
+#define g_original_face_cost_reader g_shadow_engine.hooks.original_face_cost_reader
+#define g_original_frame_builder g_shadow_engine.hooks.original_frame_builder
+#define g_original_post_call_object_renderers g_shadow_engine.hooks.original_post_call_object_renderers
+#define g_original_render_record_release g_shadow_engine.hooks.original_render_record_release
+#define g_original_render_record_constructor g_shadow_engine.hooks.original_render_record_constructor
+#define g_get_async_key_state g_shadow_engine.hooks.get_async_key_state
+#define g_profile_state g_shadow_engine.renderer.profile_state
+#define g_manager_calls g_shadow_engine.renderer.manager_calls
+#define g_live_a8_ready_logged g_shadow_engine.renderer.live_a8_ready_logged
+#define g_renderer_hook_state g_shadow_engine.renderer.renderer_hook_state
+#define g_renderer_calls g_shadow_engine.renderer.renderer_calls
+#define g_extra_face_use_seen g_shadow_engine.renderer.extra_face_use_seen
+#define g_null_face_cost_skips g_shadow_engine.renderer.null_face_cost_skips
+#define g_owner_reserve_state g_shadow_engine.renderer.owner_reserve_state
+#define g_owner_reserve_fail_closed g_shadow_engine.renderer.owner_reserve_fail_closed
+#define g_owner_base_changed_during_manager g_shadow_engine.renderer.owner_base_changed_during_manager
+#define g_owner_capacity_before g_shadow_engine.renderer.owner_capacity_before
+#define g_owner_capacity_after g_shadow_engine.renderer.owner_capacity_after
+#define g_owner_reserve_failure_logged g_shadow_engine.renderer.owner_reserve_failure_logged
+#define g_face_budget_clamps g_shadow_engine.renderer.face_budget_clamps
+#define g_face_budget_dropped_entries g_shadow_engine.renderer.face_budget_dropped_entries
+#define g_face_budget_peak_requested g_shadow_engine.renderer.face_budget_peak_requested
+#define g_tail_invalid_before_renderer g_shadow_engine.renderer.tail_invalid_before_renderer
+#define g_tail_invalid_after_renderer g_shadow_engine.renderer.tail_invalid_after_renderer
+#define g_observed_scheduler_b4 g_shadow_engine.renderer.observed_scheduler_b4
+#define g_observed_cache_a8 g_shadow_engine.renderer.observed_cache_a8
+#define g_f8_was_down g_shadow_engine.renderer.f8_was_down
+#define g_f9_was_down g_shadow_engine.renderer.f9_was_down
+#define g_last_residency_probe_tick g_shadow_engine.renderer.last_residency_probe_tick
+#define g_last_residency_log_tick g_shadow_engine.renderer.last_residency_log_tick
+#define g_pass_table_state g_shadow_engine.resources.pass_table_state
+#define g_pass_table_stored_max_key g_shadow_engine.resources.pass_table_stored_max_key
+#define g_pass_table_slots g_shadow_engine.resources.pass_table_slots
+#define g_pass_table_added_nonzero g_shadow_engine.resources.pass_table_added_nonzero
+#define g_pass_table_added_distinct g_shadow_engine.resources.pass_table_added_distinct
+#define g_pass_table_base g_shadow_engine.resources.pass_table_base
+#define g_resource_hits g_shadow_engine.resources.resource_hits
+#define g_register_hits g_shadow_engine.resources.register_hits
+#define g_shadow_hits g_shadow_engine.resources.shadow_hits
+#define g_shadow_alpha_hits g_shadow_engine.resources.shadow_alpha_hits
+#define g_last_native_shadow_seen g_shadow_engine.resources.last_native_shadow_seen
+#define g_last_native_alpha_seen g_shadow_engine.resources.last_native_alpha_seen
+#define g_native_nonzero_handles g_shadow_engine.resources.native_nonzero_handles
+#define g_native_distinct_handles g_shadow_engine.resources.native_distinct_handles
+#define g_range_resource_state g_shadow_engine.resources.range_resource_state
+#define g_range_pass_state g_shadow_engine.resources.range_pass_state
+#define g_range_nonzero_handles g_shadow_engine.resources.range_nonzero_handles
+#define g_range_distinct_handles g_shadow_engine.resources.range_distinct_handles
+#define g_routing_state g_shadow_engine.resources.routing_state
+#define g_last_resource_manager g_shadow_engine.resources.last_resource_manager
+#define g_native_handles g_shadow_engine.resources.native_handles
+#define g_extra_handles g_shadow_engine.resources.extra_handles
+#define g_shadow_map_ids g_shadow_engine.resources.shadow_map_ids
+#define g_extra_companions g_shadow_engine.resources.extra_companions
+#define g_extra_shadow_names g_shadow_engine.resources.extra_shadow_names
+#define g_extra_alpha_names g_shadow_engine.resources.extra_alpha_names
+#define g_lifecycle_records g_shadow_engine.external_results.lifecycle_records
+#define g_lifecycle_constructor_calls g_shadow_engine.external_results.lifecycle_constructor_calls
+#define g_lifecycle_builder_calls g_shadow_engine.external_results.lifecycle_builder_calls
+#define g_lifecycle_release_calls g_shadow_engine.external_results.lifecycle_release_calls
+#define g_lifecycle_record_slot_misses g_shadow_engine.external_results.lifecycle_record_slot_misses
+#define g_postcall_calls g_shadow_engine.external_results.postcall_calls
+#define g_slice_result_guard_state g_shadow_engine.external_results.slice_result_guard_state
+#define g_slice_result_native_nonnull g_shadow_engine.external_results.slice_result_native_nonnull
+#define g_slice_result_native_null g_shadow_engine.external_results.slice_result_native_null
+#define g_slice_result_external_nonnull g_shadow_engine.external_results.slice_result_external_nonnull
+#define g_slice_result_external_null g_shadow_engine.external_results.slice_result_external_null
+#define g_slice_result_external_store_failures g_shadow_engine.external_results.slice_result_external_store_failures
+#define g_slice_result_external_duplicate_indices g_shadow_engine.external_results.slice_result_external_duplicate_indices
+#define g_slice_result_external_duplicate_resources g_shadow_engine.external_results.slice_result_external_duplicate_resources
+#define g_slice_result_external_stale_lineage g_shadow_engine.external_results.slice_result_external_stale_lineage
+#define g_slice_result_external_late_writes g_shadow_engine.external_results.slice_result_external_late_writes
+#define g_slice_result_external_consumed_results g_shadow_engine.external_results.slice_result_external_consumed_results
+#define g_slice_result_external_release_events g_shadow_engine.external_results.slice_result_external_release_events
+#define g_slice_result_external_release_resources g_shadow_engine.external_results.slice_result_external_release_resources
+#define g_slice_result_external_release_failures g_shadow_engine.external_results.slice_result_external_release_failures
+#define g_slice_result_external_release_fallbacks g_shadow_engine.external_results.slice_result_external_release_fallbacks
+#define g_slice_result_external_reset_pending g_shadow_engine.external_results.slice_result_external_reset_pending
+#define g_last_external_slice_summary_tick g_shadow_engine.external_results.last_external_slice_summary_tick
+#define g_lifecycle_hooks_state g_shadow_engine.external_results.lifecycle_hooks_state
 
 static void __fastcall hooked_shadow_manager(void *manager,void *candidates,
     uint32_t candidate_count,void *bindings,void *context);

@@ -23,6 +23,9 @@ Completed structural slice:
   is journaled before mutation; failures restore bytes in reverse order, clear
   published trampoline pointers and release transaction allocations.
 - Added a standalone native fault-injection harness for rollback and commit.
+- Consolidated mutable runtime storage into one `ShadowEngineContext` with
+  bootstrap, hook-binding, manager/renderer, resource/pass and external-result
+  ownership boundaries.
 
 Deliberately unchanged:
 
@@ -38,6 +41,8 @@ Remaining architectural debt:
   lifecycle phases; each phase is now internally transactional. Engine objects
   created between phases are deliberately not treated as reversible code
   mutations.
-- Active subsystem state is still mostly file-scope static state.
+- Temporary compatibility aliases still expose the former global names to
+  already-validated hook code. Remove them module-by-module only after runtime
+  validation of the consolidated state layout.
 - The unity build remains required until a runtime-tested interface boundary is
   available.

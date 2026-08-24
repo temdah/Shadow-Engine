@@ -158,6 +158,18 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     assert bootstrap.count("patch_transaction_commit(") == 2
     assert bootstrap.count("patch_transaction_rollback(") == 2
     checks.append("transactions: all executable writes/allocations routed; two phased rollbacks")
+
+    shared = candidate_files["src/modules/00_shared_config_state.inc"]
+    for state_type in (
+        "BootstrapState", "HookBindings", "ManagerRendererState",
+        "ResourcePassState", "ExternalResultState", "ShadowEngineContext",
+    ):
+        assert f"typedef struct {state_type}" in shared, (
+            f"subsystem context missing: {state_type}"
+        )
+    assert "static ShadowEngineContext g_shadow_engine;" in shared
+    assert not re.search(r"^static\s+volatile\s+LONG\s+g_", shared, re.M)
+    checks.append("state ownership: one root context with five cohesive subsystem states")
     return checks
 
 
