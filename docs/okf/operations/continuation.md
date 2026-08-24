@@ -6,7 +6,7 @@ tags: [shadow-engine, continuation, testing, capacity]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T08:03:00+02:00
+  at: 2026-08-24T08:44:24+02:00
 sources:
   - id: refactor-notes
     resource: ../../../REFACTOR_NOTES.md
@@ -30,3 +30,7 @@ resources, queue occupancy, residency, result routing, and release lifetime.
 Change one bounded, proven bottleneck at a time. Keep regional differences in
 `RuntimeProfile`; do not add profile-specific engine policy. Repeat offline
 checks and test the final feature candidate on all supported profiles.
+
+For the first pressure capture, press F8 while the loss is visible and F9 after
+recovery. Compare manager candidates/admissions/cache ownership with queue
+entries/faces. Do not treat near-full occupancy as proof of a renderer clamp.

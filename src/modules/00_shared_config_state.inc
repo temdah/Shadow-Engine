@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "1.2.1"
+#define PATCH_VERSION "1.2.1-admission-probe.1"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -271,6 +271,16 @@ typedef struct ManagerRendererState {
     volatile LONG tail_invalid_after_renderer;
     volatile LONG observed_scheduler_b4;
     volatile LONG observed_cache_a8;
+    volatile LONG latest_candidate_count;
+    volatile LONG peak_candidate_count;
+    volatile LONG latest_admitted_count;
+    volatile LONG peak_admitted_count;
+    volatile LONG latest_dynamic_or_special_count;
+    volatile LONG latest_cached_binding_count;
+    volatile LONG peak_cached_binding_count;
+    volatile LONG latest_owner_record_count;
+    volatile LONG peak_owner_record_count;
+    volatile LONG admission_scan_state;
     volatile LONG f8_was_down;
     volatile LONG f9_was_down;
     DWORD last_residency_probe_tick;

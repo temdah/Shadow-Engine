@@ -26,6 +26,67 @@ static uint32_t decode_owner_vector_capacity(uint32_t encoded)
     uint64_t capacity=base<<shift;
     return capacity>UINT32_MAX ? UINT32_MAX : (uint32_t)capacity;
 }
+
+static void update_manager_peak(volatile LONG *destination,uint32_t value)
+{
+    LONG observed=InterlockedCompareExchange(destination,0,0);
+    while((uint32_t)observed<value) {
+        LONG previous=InterlockedCompareExchange(destination,(LONG)value,observed);
+        if(previous==observed) break;
+        observed=previous;
+    }
+}
+
+/* The native admission output is a vector of 0x18-byte records:
+ * candidate pointer, optional cached-owner pointer, and flags.  Capture only
+ * aggregate counts while the vector is owned by the original manager call.
+ * F8/F9 later reads the atomic snapshot instead of borrowing transient data. */
+static void capture_manager_admission_pressure(void *manager,
+    uint32_t candidate_count,void *bindings)
+{
+    unsigned char *vector=(unsigned char *)bindings;
+    unsigned char *records;
+    uint32_t admitted=0,cached=0,index,owners=0;
+    LONG scan_state=-1;
+
+    InterlockedExchange(&g_shadow_engine.renderer.latest_candidate_count,
+        (LONG)candidate_count);
+    update_manager_peak(&g_shadow_engine.renderer.peak_candidate_count,
+        candidate_count);
+    if(manager && readable_memory((unsigned char *)manager+0xA0,
+                                  sizeof(uint32_t))) {
+        owners=*(uint32_t *)((unsigned char *)manager+0xA0);
+        InterlockedExchange(&g_shadow_engine.renderer.latest_owner_record_count,
+            (LONG)owners);
+        update_manager_peak(&g_shadow_engine.renderer.peak_owner_record_count,
+            owners);
+    }
+    if(vector && readable_memory(vector,12U)) {
+        records=*(unsigned char **)vector;
+        admitted=*(uint32_t *)(vector+8);
+        if(admitted<=candidate_count && admitted<=256U &&
+           (admitted==0U || (records && readable_memory(
+               records,(size_t)admitted*0x18U)))) {
+            for(index=0;index<admitted;++index)
+                if(*(void **)(records+(size_t)index*0x18U+8U)) ++cached;
+            scan_state=1;
+        }
+    }
+    if(scan_state>0) {
+        InterlockedExchange(&g_shadow_engine.renderer.latest_admitted_count,
+            (LONG)admitted);
+        update_manager_peak(&g_shadow_engine.renderer.peak_admitted_count,
+            admitted);
+        InterlockedExchange(
+            &g_shadow_engine.renderer.latest_dynamic_or_special_count,
+            (LONG)(admitted-cached));
+        InterlockedExchange(
+            &g_shadow_engine.renderer.latest_cached_binding_count,(LONG)cached);
+        update_manager_peak(
+            &g_shadow_engine.renderer.peak_cached_binding_count,cached);
+    }
+    InterlockedExchange(&g_shadow_engine.renderer.admission_scan_state,scan_state);
+}
 /* v0.7.6 raised the logical A8 ceiling after the profile callback had reserved
  * only four 0x700-byte owner records. Owner #5 then moved the vector while the
  * same admission pass still held raw pointers to earlier records. The reserve
@@ -144,7 +205,8 @@ static void __fastcall hooked_shadow_manager(void *manager,void *candidates,
     {
         void *owner_base_before=manager ?
             *(void **)((unsigned char *)manager+0x98) : NULL;
-    g_shadow_engine.hooks.original_manager(manager,candidates,candidate_count,bindings,context);
+        g_shadow_engine.hooks.original_manager(manager,candidates,candidate_count,bindings,context);
+        capture_manager_admission_pressure(manager,candidate_count,bindings);
         if(manager && owner_base_before!=*(void **)((unsigned char *)manager+0x98)) {
             InterlockedIncrement(&g_shadow_engine.renderer.owner_base_changed_during_manager);
             InterlockedExchange(&g_shadow_engine.renderer.owner_reserve_fail_closed,1);

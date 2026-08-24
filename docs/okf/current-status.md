@@ -6,7 +6,7 @@ tags: [shadow-engine, status, runtime, refactor]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T08:03:00+02:00
+  at: 2026-08-24T08:44:24+02:00
 sources:
   - id: patch-source
     resource: ../../src/shadow_engine_patch.c
@@ -42,7 +42,13 @@ source and feature-development baseline.
 
 Measure emergency-light and dense-traffic shadow pressure. Stress testing
 reproduced temporary world-shadow loss near the current 24-face physical
-budget, making that budget the leading bottleneck. Do not raise it in isolation:
-prove every coupled allocation, writer, reader, index, and lifetime first.
+budget, but none of the five validated logs recorded a renderer face-budget
+clamp. Earlier manager admission (`B4=16`) or cached-owner retention (`A8=4`) is
+therefore the stronger current hypothesis.
+
+A diagnostic-only candidate adds aggregate admission/cache counts to the
+existing residency and F8/F9 captures without changing capacity or engine
+policy. Capture the visible-loss and recovered states before selecting a
+bounded policy experiment.
 
 [^refactor-notes]: Behavior-neutral refactor notes

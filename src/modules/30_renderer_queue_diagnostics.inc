@@ -30,11 +30,19 @@ static void trace_renderer_capacity(void *queue)
      * Immediate first-use, overflow, clamp, and tail-integrity diagnostics are
      * reported separately, so successful play does not need a line per second. */
     if(now-g_shadow_engine.renderer.last_residency_log_tick>=30000U) {
-        append_log("STAGE_F_RESIDENCY rendererCall=%ld queue=%p entries=%u activeEntries=%u faces=%u extraMapsInUse=%u physicalMaps=24 overflow=%u B4=%ld A8=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
+        append_log("STAGE_F_RESIDENCY rendererCall=%ld queue=%p entries=%u activeEntries=%u faces=%u extraMapsInUse=%u physicalMaps=24 overflow=%u B4=%ld A8=%ld latestCandidates=%ld peakCandidates=%ld latestAdmitted=%ld peakAdmitted=%ld latestDynamicOrSpecial=%ld latestCachedBindings=%ld peakCachedBindings=%ld latestOwnerRecords=%ld peakOwnerRecords=%ld admissionScanState=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
             (long)g_shadow_engine.renderer.renderer_calls,queue,entries,active,faces,
             faces>ORIGINAL_LOCAL_MAPS?faces-ORIGINAL_LOCAL_MAPS:0U,
             faces>TOTAL_LOCAL_MAPS?faces-TOTAL_LOCAL_MAPS:0U,
             (long)g_shadow_engine.renderer.observed_scheduler_b4,(long)g_shadow_engine.renderer.observed_cache_a8,
+            (long)g_shadow_engine.renderer.latest_candidate_count,(long)g_shadow_engine.renderer.peak_candidate_count,
+            (long)g_shadow_engine.renderer.latest_admitted_count,(long)g_shadow_engine.renderer.peak_admitted_count,
+            (long)g_shadow_engine.renderer.latest_dynamic_or_special_count,
+            (long)g_shadow_engine.renderer.latest_cached_binding_count,
+            (long)g_shadow_engine.renderer.peak_cached_binding_count,
+            (long)g_shadow_engine.renderer.latest_owner_record_count,
+            (long)g_shadow_engine.renderer.peak_owner_record_count,
+            (long)g_shadow_engine.renderer.admission_scan_state,
             (long)g_shadow_engine.renderer.owner_reserve_state,(long)g_shadow_engine.renderer.owner_capacity_after,
             (long)g_shadow_engine.renderer.owner_base_changed_during_manager);
         g_shadow_engine.renderer.last_residency_log_tick=now;
@@ -117,10 +125,18 @@ static void log_manual_queue_capture(const char *state,void *manager,void *queue
     if(scan_entries>TOTAL_LOCAL_MAPS+1U) scan_entries=TOTAL_LOCAL_MAPS+1U;
     if(base && readable_memory(base+RENDER_QUEUE_TAIL_OFFSET,sizeof(void *)))
         tail=*(void **)(base+RENDER_QUEUE_TAIL_OFFSET);
-    append_log("STAGE_J_MANUAL_CAPTURE_BEGIN serial=%ld state=%s rendererCall=%ld manager=%p queue=%p tail=%p originalEntries=%u requestedFaces=%u admittedEntries=%u admittedFaces=%u B4=%ld A8=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
+    append_log("STAGE_J_MANUAL_CAPTURE_BEGIN serial=%ld state=%s rendererCall=%ld manager=%p queue=%p tail=%p originalEntries=%u requestedFaces=%u admittedEntries=%u admittedFaces=%u B4=%ld A8=%ld latestCandidates=%ld peakCandidates=%ld latestManagerAdmitted=%ld peakManagerAdmitted=%ld latestDynamicOrSpecial=%ld latestCachedBindings=%ld peakCachedBindings=%ld latestOwnerRecords=%ld peakOwnerRecords=%ld admissionScanState=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
         (long)serial,state,(long)g_shadow_engine.renderer.renderer_calls,manager,queue,tail,
         original_entries,requested_faces,admitted_entries,admitted_faces,
         (long)g_shadow_engine.renderer.observed_scheduler_b4,(long)g_shadow_engine.renderer.observed_cache_a8,
+        (long)g_shadow_engine.renderer.latest_candidate_count,(long)g_shadow_engine.renderer.peak_candidate_count,
+        (long)g_shadow_engine.renderer.latest_admitted_count,(long)g_shadow_engine.renderer.peak_admitted_count,
+        (long)g_shadow_engine.renderer.latest_dynamic_or_special_count,
+        (long)g_shadow_engine.renderer.latest_cached_binding_count,
+        (long)g_shadow_engine.renderer.peak_cached_binding_count,
+        (long)g_shadow_engine.renderer.latest_owner_record_count,
+        (long)g_shadow_engine.renderer.peak_owner_record_count,
+        (long)g_shadow_engine.renderer.admission_scan_state,
         (long)g_shadow_engine.renderer.owner_reserve_state,(long)g_shadow_engine.renderer.owner_capacity_after,
         (long)g_shadow_engine.renderer.owner_base_changed_during_manager);
     append_log("STAGE_J_MANUAL_CAPTURE_HANDLES serial=%ld maps0to23=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X",

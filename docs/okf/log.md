@@ -2,6 +2,7 @@
 
 ## 2026-08-24
 
+* **Pressure diagnostics**: Distinguished upstream manager admission/cache pressure from renderer face-budget pressure and added aggregate F8/F9 measurements without changing engine policy.
 * **CI artifact**: Added a main-push GitHub Actions workflow that reproducibly builds the ASI and uploads the actual installable mod ZIP plus checksum without creating tags or GitHub Releases.
 * **Release**: Promoted the validated architecture refactor to v1.2.1; only the embedded version identity and resulting PE checksum differ from the five-profile-tested ASI.
 * **Runtime validation**: The unchanged `ac74c2a` candidate passed all five supported runtime profiles, including a 20-minute Global stability run.
