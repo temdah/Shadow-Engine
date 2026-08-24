@@ -13,6 +13,10 @@ architecture and validation contracts from historical experiments.
 * [Runtime architecture](architecture/runtime-architecture.md) - Module boundaries and subsystem ownership.
 * [Runtime profiles](architecture/runtime-profiles.md) - Regional compatibility without profile-specific policy.
 * [Patch transactions](architecture/patch-transactions.md) - Preflight, commit, and rollback guarantees.
+* [Shadow pipeline](architecture/shadow-pipeline.md) - Engine stages and first-broken-stage diagnosis.
+* [Shadow capacity layout](architecture/engine-capacity-layout.md) - Exact coupled formulas for maps, queue regions, passes, and results.
+* [Resource and pass lifecycle](architecture/resource-pass-lifecycle.md) - Safe construction and finalization boundaries.
+* [External slice results](architecture/external-slice-results.md) - Result routing and release beyond the native inline array.
 
 # Validation and operations
 
@@ -22,6 +26,8 @@ architecture and validation contracts from historical experiments.
 * [Evidence policy](operations/evidence-policy.md) - Public evidence and claim boundaries.
 * [Code quality](operations/code-quality.md) - Mandatory architecture and implementation rules.
 * [OKF maintenance](operations/okf-maintenance.md) - Mandatory public-bundle authoring rules.
+* [Knowledge preflight](operations/knowledge-preflight.md) - Mandatory lookup-first engine workflow.
+* [Known failure boundaries](validation/known-failure-boundaries.md) - Rejected shortcuts and runtime signatures.
 
 # Compatibility
 

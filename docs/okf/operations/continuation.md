@@ -6,7 +6,7 @@ tags: [shadow-engine, continuation, testing, capacity]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T08:44:24+02:00
+  at: 2026-08-24T10:30:00+02:00
 sources:
   - id: refactor-notes
     resource: ../../../REFACTOR_NOTES.md
@@ -22,6 +22,9 @@ commit as the feature baseline until the next candidate passes proportionate
 offline and runtime validation.
 
 # Feature investigation
+
+Complete the [knowledge preflight](knowledge-preflight.md) before adding a probe
+or deriving another capacity target.
 
 Instrument the path affected by emergency-light and dense-traffic shadow
 pressure: the 24-face physical budget, admission, owner reservation, live

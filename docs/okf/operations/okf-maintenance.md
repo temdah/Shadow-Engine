@@ -6,7 +6,7 @@ tags: [shadow-engine, okf, documentation, provenance]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T00:00:00+02:00
+  at: 2026-08-24T10:30:00+02:00
 sources:
   - id: okf-spec
     resource: https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md
@@ -42,6 +42,12 @@ Ubisoft artifacts, dumps, credentials, unpublished paths, and redistribution-
 restricted files remain outside the repository.
 
 # Change workflow
+
+OKF is a lookup system, not only an output format. Before investigation or
+implementation, search the active bundle and relevant archive provenance, then
+verify important claims against current sources. If durable knowledge exists
+only in a log, chat, handoff, archive narrative, or code comment, promote it to
+a focused active concept and make it discoverable from an index.
 
 Any code change that alters durable architecture, compatibility, validation,
 or operations updates the affected concept and bundle log in the same commit.

@@ -9,6 +9,13 @@ Read:
 5. `docs\okf\operations\okf-maintenance.md`
 6. Only the additional concepts and source relevant to the task
 
+Before reverse engineering or changing engine behavior, complete
+`docs\okf\operations\knowledge-preflight.md`. Search active and archived OKF,
+current source, affected values/RVAs, runtime markers, and adjacent subsystems.
+Record what was searched and promote durable archive-only findings into a
+focused active concept. OKF lookup is mandatory work, not only documentation
+performed after code changes.
+
 ## Architecture rules
 
 - `src\shadow_engine_patch.c` remains composition-only; production behavior belongs in its owning module.
@@ -24,6 +31,7 @@ Read:
 
 - Start from the accepted baseline and change one runtime hypothesis at a time.
 - Do not call a value capacity until allocation, writers, readers, indexing, and lifetime are mapped.
+- Do not derive one uniform layout formula from a single old/new pair; identify every intervening variable-length region and validate each independently.
 - Use named constants for engine-derived values and comments for invariants and rationale.
 - A feature change must map to one owning module, one validation plan, and the affected OKF concepts.
 - Build only through `build.ps1` with TinyCC 0.9.27 win64.

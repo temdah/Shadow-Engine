@@ -6,7 +6,7 @@ tags: [shadow-engine, shadows, admission, cache, capacity]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T09:16:36+02:00
+  at: 2026-08-24T10:30:00+02:00
 sources:
   - id: manager-source
     resource: ../../../src/modules/20_manager_owner_profile.inc
@@ -54,12 +54,13 @@ not lengthen the shared coarse-refresh rotation.
 
 The first v1.2.2 runtime test rejected its implementation: all shadows were
 missing and all `SliceExecute` result counters remained zero even though queue
-records and faces were present. Historical layout evidence shows that the
-record region, first mapping array, and post-mapping fields grow by `0x24C0`,
-`0x24C4`, and `0x24C8` per map respectively. v1.2.2 incorrectly used the final
+records and faces were present. Historical patch tables plus current layout
+recovery show that the record region, first mapping array, and post-mapping
+fields grow by `0x24C0`, `0x24C4`, and `0x24C8` per map respectively. v1.2.2 incorrectly used the final
 stride for all 46 relocations, displacing the first mapping array by 48 bytes
 and the second by 24 bytes. v1.2.3 corrects those offsets and adds explicit
-three-stride validation without reducing the 30-map target.
+three-stride validation without reducing the 30-map target. The complete
+formulas are maintained in the [capacity-layout contract](engine-capacity-layout.md).
 
 The 30-map target stays inside the proven 64-slot pass registry: passes 17-30
 occupy slots 34-61 and require maximum key `0x3D0C`, below stored maximum

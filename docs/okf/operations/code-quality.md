@@ -6,7 +6,7 @@ tags: [shadow-engine, code-quality, architecture, solid]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T00:00:00+02:00
+  at: 2026-08-24T10:30:00+02:00
 sources:
   - id: agent-rules
     resource: ../../../AGENTS.md
@@ -47,6 +47,12 @@ Change one proven hypothesis at a time. A value is not a capacity merely
 because increasing it changes output: map its allocation, writers, readers,
 indexing, and lifetime first. Keep inactive probes and historical repair code
 out of the production unity build.
+
+Complete the [knowledge preflight](knowledge-preflight.md) before deriving or
+changing engine behavior. Search active and archived OKF plus source for the
+affected value, RVA, marker, and adjacent subsystem. Do not generalize one
+uniform formula across multiple variable-length regions, and do not let a
+validator reuse the same derivation it is meant to check.
 
 # Completion gate
 

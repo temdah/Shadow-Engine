@@ -6,7 +6,7 @@ tags: [shadow-engine, status, runtime, refactor]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T09:16:36+02:00
+  at: 2026-08-24T10:30:00+02:00
 sources:
   - id: patch-source
     resource: ../../src/shadow_engine_patch.c
@@ -55,9 +55,12 @@ occurred.
 v1.2.2 attempted the resulting 30-map expansion but is rejected. Its first
 runtime test loaded with every shadow missing and produced zero native or
 external `SliceExecute` results. The queue itself contained valid records and
-face pointers. Review against the historical OKF layout contract found that
-the two mapping arrays had been advanced uniformly by `0x24C8` per map instead
+face pointers. Review against historical patch tables and current source found
+that the two mapping arrays had been advanced uniformly by `0x24C8` per map instead
 of their distinct `0x24C0` and `0x24C4` strides.
+
+The exact formulas and coupled capacity contract are maintained in
+[Shadow Capacity Layout](architecture/engine-capacity-layout.md).
 
 v1.2.3 corrects those mapping offsets while retaining the intended capacity. It expands to 30
 physical maps and 31 queue entries, registers maps 16-29 through passes 17-30,

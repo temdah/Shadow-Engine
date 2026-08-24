@@ -2,6 +2,7 @@
 
 ## 2026-08-24
 
+* **Knowledge audit**: Promoted the engine pipeline, three-region queue layout, constructor/pass lifecycle, external result lifecycle, and known failure boundaries from scattered source and archived narratives into focused active concepts; added mandatory lookup-first knowledge preflight rules.
 * **v1.2.3 correction**: Retained the 30-map target but corrected two internal mapping-array relocation classes to their historical `0x24C0` and `0x24C4` per-map strides; strengthened compile-time and offline validation around the three-region layout.
 * **v1.2.2 rejected**: The first runtime test had all shadows missing and zero `SliceExecute` result stores despite populated queue records. The uniform `0x24C8` relocation rule displaced the two mapping arrays and prevented shadow-job dispatch.
 * **v1.2.2 candidate**: Added a measured 30-map/31-entry physical layout with `B4=21`, `A8=4`, passes 17-30, external results 17-29, admission diagnostics, compile-time coupling checks, and a capacity-specific offline validator.
