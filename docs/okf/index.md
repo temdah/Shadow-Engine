@@ -21,6 +21,7 @@ architecture and validation contracts from historical experiments.
 # Validation and operations
 
 * [Offline gates](validation/offline-gates.md) - Mechanical checks before runtime testing.
+* [Regional runtime corpus gate](validation/runtime-corpus-gate.md) - Byte-level checks across supported executable layouts.
 * [Regional runtime matrix](validation/regional-runtime-matrix.md) - Five-profile in-game validation contract.
 * [Continuation](operations/continuation.md) - Ordered work before capacity feature changes.
 * [Evidence policy](operations/evidence-policy.md) - Public evidence and claim boundaries.

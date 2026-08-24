@@ -38,10 +38,14 @@ performed after code changes.
 
 ## Validation rules
 
-Run relevant refactor equivalence checks, transaction fault-injection tests for
-mutation changes, warning-clean reproducible builds, and public/private OKF
-validation. A final runtime-policy candidate requires the complete five-profile
-matrix. Tim installs and launches manually.
+Run relevant refactor equivalence checks, the regional runtime corpus gate for
+capacity or relocation changes, transaction fault-injection tests for mutation
+changes, warning-clean reproducible builds, and public/private OKF validation.
+Use the risk tiers in `docs\okf\validation\regional-runtime-matrix.md`: shared
+policy changes with an unchanged compatibility surface require one Global
+high-load run after the corpus gate; regional/profile/hook/resolver changes
+require affected-profile or complete five-profile testing. Tim installs and
+launches manually.
 
 ## Evidence and Git
 

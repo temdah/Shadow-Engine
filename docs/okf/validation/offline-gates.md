@@ -1,7 +1,7 @@
 ---
 type: Validation Reference
 title: Offline Refactor Gates
-description: Source-equivalence, mapping, transaction, and reproducibility checks before runtime testing.
+description: Source-equivalence, regional corpus, transaction, and reproducibility checks before runtime testing.
 tags: [shadow-engine, validation, reproducibility, rollback]
 status: draft
 generated:
@@ -14,6 +14,9 @@ sources:
   - id: transaction-test
     resource: ../../../tests/test_patch_transaction.ps1
     title: Transaction fault-injection test
+  - id: corpus-test
+    resource: ../../../tests/validate_runtime_corpus.py
+    title: Regional runtime corpus validator
   - id: main-artifact-workflow
     resource: ../../../.github/workflows/build-mod.yml
     title: Main-branch installable artifact workflow
@@ -33,9 +36,12 @@ sources:
 * Preserve full native light passthrough and unknown-build fail-closed behavior.
 * Prove transaction restoration and allocation cleanup under injected faults.
 * Produce byte-identical binaries from two clean builds.
+* For engine-capacity or relocation changes, pass the [regional runtime corpus
+  gate](runtime-corpus-gate.md) against all five preserved runtime identities.
 * On every push to `main`, build and upload the actual installable mod ZIP and
   its checksum without creating a tag or GitHub Release.
 
-These checks detect behavioral drift visible in source and mutation mechanics.
-They cannot establish that injected execution or rendered output is equivalent;
-that requires the [regional runtime matrix](regional-runtime-matrix.md).
+These checks detect behavioral drift visible in source, executable layout, and
+mutation mechanics. They cannot establish that injected execution or rendered
+output is equivalent; apply the risk-based manual gate in the
+[regional runtime matrix](regional-runtime-matrix.md).

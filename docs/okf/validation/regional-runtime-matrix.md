@@ -1,7 +1,7 @@
 ---
 type: Validation Plan
 title: Regional Runtime Matrix
-description: Completed one-candidate in-game validation across every supported runtime profile.
+description: Completed baseline matrix and risk-based manual gates for later candidates.
 tags: [shadow-engine, validation, runtime, compatibility]
 status: stable
 generated:
@@ -29,11 +29,27 @@ complete produced log before changing either. Runtime automation may prepare
 files and collect evidence, but the user controls the launcher, game process,
 and visual judgment.
 
-# Acceptance
+# Risk-based gates after the accepted matrix
 
-The matrix passes only when all five profiles pass one frozen candidate. A
-failure on one profile blocks the candidate without invalidating previously
-accepted release behavior.
+The completed five-profile v1.2.1 matrix is the regional runtime baseline.
+Later candidates use the smallest manual gate justified by their changed
+surface, after all relevant offline gates pass:
+
+* Documentation, packaging, or diagnostics with no runtime-policy effect:
+  offline checks only, unless the diagnostic itself needs runtime evidence.
+* Shared capacity or scheduling policy with profiles, signatures, resolver,
+  preflight, hook set, and transaction topology unchanged: pass the regional
+  runtime corpus gate, then run one representative Global/04DF high-load visual
+  and stability test.
+* A change to an explicit regional mapping or profile-local address: test every
+  affected profile after the corpus gate.
+* A change to profile selection, resolver logic, signatures, preflight,
+  bootstrap, detour topology, ABI, or mutation transaction: run the complete
+  five-profile matrix on one frozen candidate.
+
+Any failure expands the gate to the affected profiles and blocks the candidate.
+Static checks never replace the representative in-game visual test for an
+engine-policy change.
 
 # Result
 

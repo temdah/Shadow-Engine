@@ -6,7 +6,7 @@ tags: [shadow-engine, status, runtime, refactor]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T10:30:00+02:00
+  at: 2026-08-24T10:27:50+02:00
 sources:
   - id: patch-source
     resource: ../../src/shadow_engine_patch.c
@@ -65,8 +65,18 @@ The exact formulas and coupled capacity contract are maintained in
 v1.2.3 corrects those mapping offsets while retaining the intended capacity. It expands to 30
 physical maps and 31 queue entries, registers maps 16-29 through passes 17-30,
 routes external results 17-29, and sets `B4=21` for approximately 20 ordinary
-dynamic positions while retaining `A8=4`. The v1.2.1 release remains the
-accepted baseline until v1.2.3 passes runtime testing.
+dynamic positions while retaining `A8=4`.
+
+Tim's Global/04DF extreme-load run is a strong pass. A scene exceeding the old
+failure reproducer showed no shadow-quality reduction or disappearance;
+sampled use reached 23 queue entries, 26 faces, 10 extra maps, 180 candidates,
+and 26 admissions. One distant flicker remains unclassified and may be ordinary
+LOD behavior. The regional runtime corpus gate passes four profiles with 62
+byte-exact checks each and couples packed A4EE to its frozen successful runtime
+attestation. Under the risk-based policy, this satisfies the shared-capacity
+candidate gate because profiles, signatures, resolver, preflight, hook set, and
+transaction topology are unchanged. v1.2.1 remains the accepted published
+fallback until v1.2.3 is deliberately promoted.
 
 Corrected candidate source commit: `f31769d`. Reproducible ASI SHA-256:
 `5510E9F34F62DD61F6C49E4F946664A9241A743C9E989B98DABF335506ED4CC2`.
