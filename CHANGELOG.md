@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.0
+
+- Promotes the tested `B4=25`, `A8=4`, 30-map engine policy after an extreme
+  Global/04DF scene retained stable spotlight, moon, world, vehicle and siren
+  shadows without observed flicker, crash, or visual regression.
+- Reached 30 manager admissions and all 30 physical faces. The priority guard
+  safely bounded requests of up to 33 faces by dropping at most three trailing
+  lower-priority records, with no overflow, corruption, owner movement, late
+  write, duplicate result, or release failure.
+- Retains the five-profile compatibility matrix and the validated v1.2.3
+  queue, pass, map, transaction and external-result architecture.
+
 ## 1.2.4
 
 - Raises the coherent dynamic manager target from `B4=21` to `B4=25` to test

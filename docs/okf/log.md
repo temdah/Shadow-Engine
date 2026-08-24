@@ -2,6 +2,8 @@
 
 ## 2026-08-24
 
+* **v2.0.0 release candidate**: Promoted the accepted `B4=25`, `A8=4`, 30-map policy after an extreme Global run showed no flicker or regression at 30 admissions/30 faces; byte comparison proved the 2.0.0 ASI changes only version strings and PE checksum from the tested v1.2.4 binary.
+* **v1.2.4 runtime result**: Tim reported substantially improved high-stress stability with no observed flicker; the guard safely bounded 402 requests up to 33 faces with no overflow, corruption, owner movement, late write, duplicate result, or release failure.
 * **v1.2.4 candidate**: Raised only coherent manager `B4` from 21 to 25 to test four additional dynamic residency positions; retained `A8=4`, 30 maps, all compatibility/layout/lifecycle mechanics, and passed every offline gate.
 * **v1.2.3 publication**: Fast-forwarded the fully calibrated release commit `33490f1` to `main`, triggering the installable-mod artifact workflow.
 * **v1.2.3 five-profile calibration**: The frozen candidate matched the offline compatibility prediction on all five profiles; established the corpus-plus-representative-run tier for future shared-policy changes and exposed one delayed-activation classifier false negative.

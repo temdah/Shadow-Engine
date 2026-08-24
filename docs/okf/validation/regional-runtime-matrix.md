@@ -6,7 +6,7 @@ tags: [shadow-engine, validation, runtime, compatibility]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T08:03:00+02:00
+  at: 2026-08-24T18:00:00+02:00
 sources:
   - id: profiles
     resource: ../../../src/modules/05_runtime_profiles.inc
@@ -85,3 +85,12 @@ Under extreme Complete Edition load, rapid dynamic spotlight/moon-shadow
 flicker remained at 26 manager admissions while only 26 of 30 physical faces
 were occupied. This is a shared manager admission/residency feature limit, not
 a regional compatibility failure.
+
+# v2.0.0 shared-policy result
+
+The five-profile offline corpus passed unchanged for the `B4=25` shared
+manager-policy change. Tim then completed the required representative
+Global/04DF extreme-load run on the exact v1.2.4 binary and reported no
+flicker, crash, or visual regression. v2.0.0 changes only its embedded version
+identity; byte comparison found no engine-code difference from that tested
+binary.

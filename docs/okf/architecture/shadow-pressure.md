@@ -6,7 +6,7 @@ tags: [shadow-engine, shadows, admission, cache, capacity]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T17:10:00+02:00
+  at: 2026-08-24T18:00:00+02:00
 sources:
   - id: manager-source
     resource: ../../../src/modules/20_manager_owner_profile.inc
@@ -85,6 +85,15 @@ priority-ordered whole-record guard remains the physical safety boundary. This
 candidate tests dynamic residency stability; it does not claim that all
 admitted records can render simultaneously.[^historical-capability]
 
+Tim's extreme Global/04DF run accepted this hypothesis. No flicker, crash, or
+visual regression was observed while pressure reached 154 candidates, 30
+manager admissions, all four cached bindings, and 30/30 physical faces. The
+priority guard handled 402 requests above the physical budget; the largest was
+33 faces and at most three trailing records were omitted. No overflow, queue
+corruption, owner movement, late write, duplicate result, or release failure
+occurred. This establishes 30 physical faces—not manager residency—as the next
+measured boundary after v2.0.0.
+
 # Knowledge preflight
 
 The v1.2.4 investigation searched current source, active public/private OKF,
@@ -92,9 +101,8 @@ and archived provenance for `B4`, `A8`, admission, residency, cached owners,
 owner-vector reserve, eviction, and the 26-admission capture. The retained
 invariants are physical owner reserve eight, logical `A8=4`, stable owner-vector
 base during admission, 30 physical faces, and priority-prefix face guarding.
-An `A8` increase and another blind map increase were rejected. Runtime impact
-on the remaining flicker is unresolved until Tim performs the representative
-high-load test.
+An `A8` increase and another blind map increase were rejected. The representative
+high-load result accepted the `B4=25` policy and eliminated the observed flicker.
 
 [^matrix]: Regional runtime matrix
 [^manager-source]: Shadow manager and owner-profile module

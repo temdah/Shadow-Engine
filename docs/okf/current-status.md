@@ -6,7 +6,7 @@ tags: [shadow-engine, status, runtime, refactor]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T17:10:00+02:00
+  at: 2026-08-24T18:00:00+02:00
 sources:
   - id: patch-source
     resource: ../../src/shadow_engine_patch.c
@@ -18,7 +18,7 @@ sources:
 
 # Accepted behavior
 
-Shadow Engine v1.2.3 is the accepted release baseline. One policy supports
+Shadow Engine v2.0.0 is the accepted release baseline. One policy supports
 Global/04DF, Shev/A4EE, VMPless, Complete Edition, and Asia/Miru while unknown
 or ambiguous builds fail closed.
 
@@ -88,16 +88,21 @@ spotlight/moon-shadow eviction and reacquisition at 26 manager admissions while
 only 26/30 faces were occupied. The next investigation therefore owns manager
 admission/residency stability rather than another blind physical-map increase.
 
-v1.2.4 is the isolated manager-residency candidate. It changes coherent `B4`
-from 21 to 25 while retaining `A8=4`, all 30 maps, every layout relocation,
-profile, hook, queue guard, and result-lifecycle path. All offline policy,
-transaction, five-profile corpus, unit, and reproducible-build gates pass. It
-requires one Global/04DF extreme-load visual run before acceptance.
+The v1.2.4 manager-residency candidate changed coherent `B4` from 21 to 25
+while retaining `A8=4`, all 30 maps, every layout relocation, profile, hook,
+queue guard, and result-lifecycle path. Tim's Global/04DF extreme-load run
+reported substantially improved stability and no observed flicker, crash, or
+visual regression. Runtime pressure reached 154 candidates, 30 admissions and
+30/30 faces. The priority guard safely bounded requests up to 33 faces by
+dropping at most three trailing records; no overflow, corruption, owner
+movement, late write, duplicate result, or release failure occurred.
 
-Candidate ASI SHA-256:
-`05748294FEF212F359C8FBFEED1448F21AB58C6789A2D32EDF252AD8C2A6CBA6`.
-Candidate Nexus ZIP SHA-256:
-`2DC2028D64B4C609278A21F51684058472251AF285C2505DE35A8DB79148ECFA`.
+v2.0.0 promotes that exact tested engine behavior. Byte comparison against the
+frozen v1.2.4 ASI found only the two embedded version strings and PE checksum
+changed. Release ASI SHA-256:
+`3756387276CD81D185C0702B73D08B4B0CC1E6666A7D92A082ABA3FE648C166B`.
+Nexus ZIP SHA-256:
+`6EB57F073F81587603A7D884F74DB87078B9B2CDE5A2DB2A80241A06BE336581`.
 
 Corrected candidate source commit: `f31769d`. Reproducible ASI SHA-256:
 `5510E9F34F62DD61F6C49E4F946664A9241A743C9E989B98DABF335506ED4CC2`.

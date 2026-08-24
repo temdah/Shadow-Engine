@@ -1,7 +1,7 @@
 # Shadow Engine test gates
 
 Run `validate_refactor.py` for source-policy, profile, signature, topology, and
-architecture invariants. Use `--policy-target-v124` for the v1.2.4 policy:
+architecture invariants. Use `--policy-target-v200` for the v2.0.0 policy:
 30 maps, coherent `B4=25`, and `A8=4`.
 
 Run `test_patch_transaction.ps1` whenever mutation or allocation behavior
