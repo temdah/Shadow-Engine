@@ -480,6 +480,55 @@ static int resolver_masked_match(const unsigned char *actual,
     return 1;
 }
 
+static int validate_asia_profile_map(void)
+{
+    static const uint64_t required[]={
+        RESOURCE_CONSTRUCTOR_RVA,REGISTER_PASS_RVA,MAP_LOOP_STORE_RVA,
+        MAP_LOOP_BOUND_RVA,QUEUE_COUNT_INIT_RVA,QUEUE_CLEAR_A_SIZE_RVA,
+        QUEUE_CLEAR_B_SIZE_RVA,PASS_INDEX_LOOKUP_RVA,PASS_INDEX_STORE_RVA,
+        HANDLE_LOAD_EDX_RVA,HANDLE_LOAD_ECX_RVA,HANDLE_ADDRESS_RDX_RVA,
+        SCHEDULER_INIT_RVA,SCHEDULER_FLOOR_RVA,SCHEDULER_UPPER_RVA,
+        SHADOW_MANAGER_RVA,PROFILE_CALLBACK_RVA,
+        OWNER_VECTOR_RESERVE_CALL_RVA,RENDER_QUEUE_PROCESS_RVA,
+        FACE_COST_READER_RVA,RESOURCE_WRAPPER_RVA,FRAME_BUILDER_RVA,
+        FRAME_BUILDER_END_RVA,SLICE_RESULT_NONNULL_RVA,
+        SLICE_RESULT_NULL_RVA,SLICE_RESULT_EPILOGUE_RVA,
+        POST_CALL_OBJECT_RENDERERS_RVA,RENDER_RECORD_RELEASE_RVA,
+        RENDER_RECORD_CONSTRUCTOR_RVA,FIELD_100_LOOKUP_RETURN_RVA,
+        FIELD_F8_LOOKUP_RETURN_RVA,FIELD_110_LOOKUP_RETURN_RVA,
+        SOURCE_CONFIG_LOOKUP_RVA
+    };
+    size_t i;
+    const size_t map_count=sizeof(g_asia_rva_map)/sizeof(g_asia_rva_map[0]);
+    for(i=0;i<map_count;i++) {
+        if(g_asia_rva_map[i].runtime_rva>=g_runtime_image_size ||
+           (i && g_asia_rva_map[i-1].supported_rva>=
+                 g_asia_rva_map[i].supported_rva)) {
+            append_log("ASIA_RVA_MAP_REJECTED reason=orderingOrBounds index=%u entries=%u noEngineMutation=1",
+                (unsigned)i,(unsigned)map_count);
+            return 0;
+        }
+    }
+    for(i=0;i<sizeof(required)/sizeof(required[0]);i++) {
+        if(!resolve_engine_rva(required[i])) {
+            append_log("ASIA_RVA_MAP_REJECTED reason=missingRequired supportedRva=0x%08X noEngineMutation=1",
+                (unsigned)required[i]);
+            return 0;
+        }
+    }
+    for(i=0;i<sizeof(g_tail_patches)/sizeof(g_tail_patches[0]);i++) {
+        if(!resolve_engine_rva(g_tail_patches[i].instruction_rva)) {
+            append_log("ASIA_RVA_MAP_REJECTED reason=missingTail index=%u supportedRva=0x%08X noEngineMutation=1",
+                (unsigned)i,(unsigned)g_tail_patches[i].instruction_rva);
+            return 0;
+        }
+    }
+    append_log("ASIA_RVA_MAP_VALIDATED entries=%u requiredSites=%u tailSites=%u mapping=independentPerSite noEngineMutation=1",
+        (unsigned)map_count,(unsigned)(sizeof(required)/sizeof(required[0])),
+        (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])));
+    return 1;
+}
+
 static int select_runtime_profile(unsigned char *base)
 {
     IMAGE_DOS_HEADER *dos;
@@ -492,10 +541,10 @@ static int select_runtime_profile(unsigned char *base)
         return 0;
     nt=(IMAGE_NT_HEADERS64 *)(base+dos->e_lfanew);
     if(nt->Signature!=IMAGE_NT_SIGNATURE ||
-       nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR64_MAGIC ||
-       nt->OptionalHeader.SizeOfImage!=0x06595000U)
+       nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         return 0;
 
+    g_runtime_image_size=nt->OptionalHeader.SizeOfImage;
     g_cluster_a_delta=0;
     g_cluster_b_delta=0;
     g_cluster_c_delta=0;
@@ -504,7 +553,8 @@ static int select_runtime_profile(unsigned char *base)
     g_owner_vector_reserve_rva=OWNER_VECTOR_RESERVE_RVA;
     InterlockedExchange(&g_runtime_profile,0);
 
-    if(nt->FileHeader.TimeDateStamp==0x5CD045B4U &&
+    if(nt->OptionalHeader.SizeOfImage==0x06595000U &&
+       nt->FileHeader.TimeDateStamp==0x5CD045B4U &&
        nt->OptionalHeader.CheckSum==0x01E5793CU &&
        nt->OptionalHeader.AddressOfEntryPoint==0x04760FA6U) {
         InterlockedExchange(&g_runtime_profile,1);
@@ -515,7 +565,8 @@ static int select_runtime_profile(unsigned char *base)
             (unsigned)g_string_assign_rva,(unsigned)g_native_random_rva);
         return 1;
     }
-    if(nt->FileHeader.TimeDateStamp==0x5CD13864U &&
+    if(nt->OptionalHeader.SizeOfImage==0x06595000U &&
+       nt->FileHeader.TimeDateStamp==0x5CD13864U &&
        nt->OptionalHeader.CheckSum==0x01E4FD51U &&
        nt->OptionalHeader.AddressOfEntryPoint==0x05824EE5U) {
         g_cluster_a_delta=0x00597690ULL;
@@ -531,6 +582,66 @@ static int select_runtime_profile(unsigned char *base)
             (unsigned)g_cluster_a_delta,(unsigned)g_cluster_b_delta,
             (unsigned)g_cluster_c_delta,(unsigned)g_string_assign_rva,
             (unsigned)g_native_random_rva);
+        return 1;
+    }
+    if(nt->OptionalHeader.SizeOfImage==0x04ED6000U &&
+       nt->FileHeader.TimeDateStamp==0x5BE5AA1AU &&
+       nt->OptionalHeader.CheckSum==0x048AF60CU &&
+       nt->OptionalHeader.AddressOfEntryPoint==0x02F58AC8U) {
+        g_cluster_a_delta=0x005B83F0ULL;
+        g_cluster_b_delta=0x0061E710ULL;
+        g_cluster_c_delta=0x00545D80ULL;
+        g_string_assign_rva=0x0013A080ULL;
+        g_native_random_rva=0x0011D660ULL;
+        InterlockedExchange(&g_runtime_profile,3);
+        append_log("RUNTIME_PROFILE_SELECTED profile=vmpless-1.06 timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X clusterA=0x%08X clusterB=0x%08X clusterC=0x%08X stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenFullPreflight",
+            (unsigned)nt->FileHeader.TimeDateStamp,
+            (unsigned)nt->OptionalHeader.CheckSum,
+            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
+            (unsigned)nt->OptionalHeader.SizeOfImage,
+            (unsigned)g_cluster_a_delta,(unsigned)g_cluster_b_delta,
+            (unsigned)g_cluster_c_delta,(unsigned)g_string_assign_rva,
+            (unsigned)g_native_random_rva);
+        return 1;
+    }
+    if(nt->OptionalHeader.SizeOfImage==0x041AB000U &&
+       nt->FileHeader.TimeDateStamp==0x55DC1ECDU &&
+       nt->OptionalHeader.CheckSum==0x03B84DA7U &&
+       nt->OptionalHeader.AddressOfEntryPoint==0x021FD388U) {
+        g_cluster_a_delta=0x019FFDE0ULL;
+        g_cluster_b_delta=0x01A66680ULL;
+        g_cluster_c_delta=0x0198C410ULL;
+        g_string_assign_rva=0x00136A50ULL;
+        g_native_random_rva=0x0011A190ULL;
+        InterlockedExchange(&g_runtime_profile,4);
+        append_log("RUNTIME_PROFILE_SELECTED profile=complete-edition-1.06.329 timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X clusterA=0x%08X clusterB=0x%08X clusterC=0x%08X stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenFullPreflight",
+            (unsigned)nt->FileHeader.TimeDateStamp,
+            (unsigned)nt->OptionalHeader.CheckSum,
+            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
+            (unsigned)nt->OptionalHeader.SizeOfImage,
+            (unsigned)g_cluster_a_delta,(unsigned)g_cluster_b_delta,
+            (unsigned)g_cluster_c_delta,(unsigned)g_string_assign_rva,
+            (unsigned)g_native_random_rva);
+        return 1;
+    }
+    if(nt->OptionalHeader.SizeOfImage==0x07EE1000U &&
+       nt->FileHeader.TimeDateStamp==0x543589C5U &&
+       nt->OptionalHeader.CheckSum==0x02B88696U &&
+       nt->OptionalHeader.AddressOfEntryPoint==0x07C88AFEU) {
+        g_string_assign_rva=0x00127F30ULL;
+        g_native_random_rva=0x00170020ULL;
+        InterlockedExchange(&g_runtime_profile,5);
+        if(!validate_asia_profile_map()) {
+            InterlockedExchange(&g_runtime_profile,0);
+            return 0;
+        }
+        append_log("RUNTIME_PROFILE_SELECTED profile=asia-miru-1.06.329 timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X independentRvaSites=%u stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenIndependentMapThenFullPreflight",
+            (unsigned)nt->FileHeader.TimeDateStamp,
+            (unsigned)nt->OptionalHeader.CheckSum,
+            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
+            (unsigned)nt->OptionalHeader.SizeOfImage,
+            (unsigned)(sizeof(g_asia_rva_map)/sizeof(g_asia_rva_map[0])),
+            (unsigned)g_string_assign_rva,(unsigned)g_native_random_rva);
         return 1;
     }
     append_log("RUNTIME_PROFILE_UNKNOWN timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X action=readOnlyFullSiteMap noEngineMutation=1",
@@ -573,11 +684,11 @@ static int recover_owner_vector_reserve(void)
     memcpy(&rel,call+1,4);
     target_rva=RESOLVED_ENGINE_RVA(OWNER_VECTOR_RESERVE_CALL_RVA)+5+
         (int64_t)rel;
-    if(target_rva<0x06595000ULL &&
+    if(target_rva<g_runtime_image_size &&
        readable_memory(g_disrupt_base+target_rva,sizeof(reserve_prologue)))
         signature_probe_hex(g_disrupt_base+target_rva,
             sizeof(reserve_prologue),target_hex,sizeof(target_hex));
-    if(target_rva>=0x06595000ULL ||
+    if(target_rva>=g_runtime_image_size ||
        !readable_memory(g_disrupt_base+target_rva,sizeof(reserve_prologue)) ||
        memcmp(g_disrupt_base+target_rva,reserve_prologue,
               sizeof(reserve_prologue))!=0) {
@@ -719,6 +830,8 @@ static int install_early_construction_hooks(HMODULE disrupt)
 static int install_deferred_downstream(void)
 {
     HMODULE user32;
+    const unsigned char *frame_builder_prologue;
+    size_t frame_builder_prologue_size;
     if(InterlockedCompareExchange(&g_downstream_state,1,0)!=0) return 0;
     if(!validate_deferred_sites_after_early_queue(g_disrupt_base)) {
         append_log("STAGE_E_DOWNSTREAM_ABORT signaturesChangedDuringDeferral=1");
@@ -762,8 +875,12 @@ static int install_deferred_downstream(void)
     }
     g_original_resource_wrapper=(ResourceWrapperFn)
         ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA);
+    frame_builder_prologue=g_runtime_profile==5 ?
+        g_frame_builder_asia_prologue:g_frame_builder_prologue;
+    frame_builder_prologue_size=g_runtime_profile==5 ?
+        sizeof(g_frame_builder_asia_prologue):sizeof(g_frame_builder_prologue);
     if(!install_detour(ENGINE_ADDRESS(FRAME_BUILDER_RVA),
-        g_frame_builder_prologue,sizeof(g_frame_builder_prologue),
+        frame_builder_prologue,frame_builder_prologue_size,
         hooked_external_frame_builder,(void **)&g_original_frame_builder)) {
         append_log("STAGE_Y_DOWNSTREAM_ABORT frameBuilderHookFailed=1 priorHooksAlreadyInstalled=1");
         InterlockedExchange(&g_lifecycle_hooks_state,-1);

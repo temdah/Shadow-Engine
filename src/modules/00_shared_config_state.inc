@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "1.1.0"
+#define PATCH_VERSION "1.2.0"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -314,6 +314,10 @@ static const unsigned char g_face_cost_reader_prologue[14] = {
 static const unsigned char g_frame_builder_prologue[14] = {
     0x48,0x8B,0xC4,0x4C,0x89,0x48,0x20,0x48,0x89,0x50,0x10,0x55,0x53,0x56
 };
+static const unsigned char g_frame_builder_asia_prologue[15] = {
+    0x48,0x8B,0xC4,0x4C,0x89,0x48,0x20,0x4C,0x89,0x40,0x18,
+    0x48,0x89,0x50,0x10
+};
 static const unsigned char g_post_call_task_constructor_prologue[15] = {
     0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x10,
     0x57,0x48,0x83,0xEC,0x20
@@ -398,6 +402,96 @@ static const TailPatch g_tail_patches[] = {
     { 0x3E07E7ULL, 0x27160, 0x397A0 }
 };
 
+typedef struct RuntimeRvaMap {
+    uint64_t supported_rva;
+    uint64_t runtime_rva;
+} RuntimeRvaMap;
+
+/* Asia/Miru does not preserve the three large relocation clusters used by
+ * the other protected layouts.  Every active address is therefore mapped
+ * independently from the captured unpacked image and the complete table is
+ * validated before the first write.  Keep this array sorted by supported RVA
+ * so the resolver can use a bounded binary search. */
+static const RuntimeRvaMap g_asia_rva_map[] = {
+    { 0x002BFF60ULL, 0x008D9410ULL },
+    { 0x002C0490ULL, 0x008D9940ULL },
+    { 0x002C049EULL, 0x008D994EULL },
+    { 0x002C04E2ULL, 0x008D9992ULL },
+    { 0x002CBF18ULL, 0x008E2CB8ULL },
+    { 0x002CC150ULL, 0x008E2EF0ULL },
+    { 0x002CC1B9ULL, 0x008E2F59ULL },
+    { 0x002CC1C4ULL, 0x008E2F64ULL },
+    { 0x002CC1D6ULL, 0x008E2F76ULL },
+    { 0x002CC1E8ULL, 0x008E2F88ULL },
+    { 0x002CC1FAULL, 0x008E2F9AULL },
+    { 0x002CC27FULL, 0x008E301FULL },
+    { 0x002CC291ULL, 0x008E3031ULL },
+    { 0x002CC2A3ULL, 0x008E3043ULL },
+    { 0x002CC2C3ULL, 0x008E3063ULL },
+    { 0x002CC300ULL, 0x008E30A0ULL },
+    { 0x002CC31CULL, 0x008E30BCULL },
+    { 0x002CC333ULL, 0x008E30D3ULL },
+    { 0x002D608DULL, 0x008F0EADULL },
+    { 0x002D60B2ULL, 0x008F0ED2ULL },
+    { 0x002D61D1ULL, 0x008F0FF1ULL },
+    { 0x002D6269ULL, 0x008F1089ULL },
+    { 0x002E2236ULL, 0x008FD8C6ULL },
+    { 0x002E225CULL, 0x008FD8ECULL },
+    { 0x002E2262ULL, 0x008FD8F2ULL },
+    { 0x002E2269ULL, 0x008FD8F9ULL },
+    { 0x002E2270ULL, 0x008FD900ULL },
+    { 0x002E2277ULL, 0x008FD907ULL },
+    { 0x002E8E89ULL, 0x00907D59ULL },
+    { 0x002E9B60ULL, 0x00908C00ULL },
+    { 0x002E9C21ULL, 0x00908CC1ULL },
+    { 0x002E9C3BULL, 0x00908CDBULL },
+    { 0x00304F7FULL, 0x0094018FULL },
+    { 0x00304FC3ULL, 0x009401D3ULL },
+    { 0x00305018ULL, 0x00940228ULL },
+    { 0x003050C8ULL, 0x009402D8ULL },
+    { 0x00306E60ULL, 0x00940510ULL },
+    { 0x00306EAEULL, 0x00940564ULL },
+    { 0x00306EB9ULL, 0x0094056FULL },
+    { 0x00306ECDULL, 0x00940583ULL },
+    { 0x00306EEFULL, 0x009405A5ULL },
+    { 0x00306EF3ULL, 0x009405A9ULL },
+    { 0x00306F64ULL, 0x0094061AULL },
+    { 0x00307168ULL, 0x00940818ULL },
+    { 0x003071ABULL, 0x0094085BULL },
+    { 0x00307285ULL, 0x00940935ULL },
+    { 0x0030728CULL, 0x0094093CULL },
+    { 0x003073E2ULL, 0x00940A92ULL },
+    { 0x00308389ULL, 0x00941B00ULL },
+    { 0x00308441ULL, 0x00941BB8ULL },
+    { 0x00308A01ULL, 0x00942178ULL },
+    { 0x00308A90ULL, 0x0092F4B0ULL },
+    { 0x00308B53ULL, 0x0092F573ULL },
+    { 0x00308DB0ULL, 0x00933780ULL },
+    { 0x00309050ULL, 0x00933A20ULL },
+    { 0x003090B9ULL, 0x00933A89ULL },
+    { 0x0030A5F8ULL, 0x00934F98ULL },
+    { 0x0030ABC0ULL, 0x00935560ULL },
+    { 0x0030ACC9ULL, 0x00935669ULL },
+    { 0x0030D1BDULL, 0x00937B56ULL },
+    { 0x0030D222ULL, 0x00937BBBULL },
+    { 0x003C1350ULL, 0x00A1D5B0ULL },
+    { 0x003C6D1DULL, 0x00A2346DULL },
+    { 0x003CA3E2ULL, 0x00A29E62ULL },
+    { 0x003CA441ULL, 0x00A29EC1ULL },
+    { 0x003CA76FULL, 0x00A2A1EFULL },
+    { 0x003CA77AULL, 0x00A2A1FAULL },
+    { 0x003CA980ULL, 0x00A2A400ULL },
+    { 0x003DC780ULL, 0x00A53740ULL },
+    { 0x003DDD9CULL, 0x00A54EF2ULL },
+    { 0x003DDFC0ULL, 0x00A55138ULL },
+    { 0x003DE059ULL, 0x00A551DAULL },
+    { 0x003DF833ULL, 0x00A56A1BULL },
+    { 0x003E072FULL, 0x00A571EFULL },
+    { 0x003E07E7ULL, 0x00A572A7ULL },
+    { 0x003E4420ULL, 0x00A5B330ULL },
+    { 0x00427860ULL, 0x009947B0ULL }
+};
+
 static HMODULE g_self;
 static LONG g_initialized;
 static volatile LONG g_nexus_init_calls;
@@ -406,6 +500,7 @@ static volatile LONG g_dllmain_fallback_attempts;
 static void *volatile g_nexus_interface;
 static BootstrapSnapshot g_snapshot;
 static unsigned char *g_disrupt_base;
+static uint64_t g_runtime_image_size;
 static uint64_t g_cluster_a_delta;
 static uint64_t g_cluster_b_delta;
 static uint64_t g_cluster_c_delta;
@@ -414,14 +509,30 @@ static uint64_t g_native_random_rva=0x000B9780ULL;
 static uint64_t g_owner_vector_reserve_rva=OWNER_VECTOR_RESERVE_RVA;
 static volatile LONG g_runtime_profile;
 
-/* Known protected builds preserve three internally coherent code regions even
- * when VMProtect lays those regions out at different RVAs.  All engine access
- * goes through this resolver; no hook or write may use a raw supported-build
- * RVA after profile selection. */
-#define RESOLVED_ENGINE_RVA(rva) ((uint64_t)(rva)+ \
-    ((uint64_t)(rva)>=0x00420000ULL ? g_cluster_c_delta : \
-    ((uint64_t)(rva)>=0x003C0000ULL ? g_cluster_b_delta : \
-    ((uint64_t)(rva)>=0x002B0000ULL ? g_cluster_a_delta : 0ULL))))
+/* Known protected builds either preserve three coherent code regions or use
+ * the independently mapped Asia layout.  All engine access goes through this
+ * resolver; no hook or write may use a raw supported-build RVA after profile
+ * selection. */
+static uint64_t resolve_engine_rva(uint64_t rva)
+{
+    if(g_runtime_profile==5) {
+        size_t low=0;
+        size_t high=sizeof(g_asia_rva_map)/sizeof(g_asia_rva_map[0]);
+        while(low<high) {
+            size_t middle=low+(high-low)/2;
+            uint64_t supported=g_asia_rva_map[middle].supported_rva;
+            if(rva<supported) high=middle;
+            else if(rva>supported) low=middle+1;
+            else return g_asia_rva_map[middle].runtime_rva;
+        }
+        return 0;
+    }
+    return rva+
+        (rva>=0x00420000ULL ? g_cluster_c_delta :
+        (rva>=0x003C0000ULL ? g_cluster_b_delta :
+        (rva>=0x002B0000ULL ? g_cluster_a_delta : 0ULL)));
+}
+#define RESOLVED_ENGINE_RVA(rva) resolve_engine_rva((uint64_t)(rva))
 #define ENGINE_ADDRESS(rva) (g_disrupt_base+RESOLVED_ENGINE_RVA(rva))
 static ResourceConstructorFn g_original_resource_constructor;
 static RegisterPassFn g_original_register_pass;

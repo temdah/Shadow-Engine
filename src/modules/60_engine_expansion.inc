@@ -628,6 +628,8 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
 
 static int validate_downstream_sites(unsigned char *base)
 {
+    const unsigned char *frame_builder_prologue;
+    size_t frame_builder_prologue_size;
     static const unsigned char owner_reserve[7]={
         0x4C,0x8B,0xDC,0x48,0x83,0xEC,0x68
     };
@@ -635,6 +637,10 @@ static int validate_downstream_sites(unsigned char *base)
         0x48,0x8B,0x4C,0xCA,0x08,0x48,0x85,0xC9,0x74,0x29,
         0x48,0x8B,0x09,0x48,0x8D,0x94
     };
+    frame_builder_prologue=g_runtime_profile==5 ?
+        g_frame_builder_asia_prologue:g_frame_builder_prologue;
+    frame_builder_prologue_size=g_runtime_profile==5 ?
+        sizeof(g_frame_builder_asia_prologue):sizeof(g_frame_builder_prologue);
     return validate_queue_layout() &&
            validate_slice_result_store_sites(0x27170U) &&
            validate_handle_relays() &&
@@ -647,8 +653,8 @@ static int validate_downstream_sites(unsigned char *base)
                   sizeof(g_face_cost_reader_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA),g_resource_wrapper_prologue,
                   sizeof(g_resource_wrapper_prologue))==0 &&
-           memcmp(ENGINE_ADDRESS(FRAME_BUILDER_RVA),g_frame_builder_prologue,
-                  sizeof(g_frame_builder_prologue))==0 &&
+           memcmp(ENGINE_ADDRESS(FRAME_BUILDER_RVA),frame_builder_prologue,
+                  frame_builder_prologue_size)==0 &&
            memcmp(ENGINE_ADDRESS(POST_CALL_OBJECT_RENDERERS_RVA),
                   g_post_call_object_renderers_prologue,
                   sizeof(g_post_call_object_renderers_prologue))==0 &&
@@ -665,6 +671,8 @@ static int validate_downstream_sites(unsigned char *base)
 }
 static int validate_deferred_sites_after_early_queue(unsigned char *base)
 {
+    const unsigned char *frame_builder_prologue;
+    size_t frame_builder_prologue_size;
     static const unsigned char owner_reserve[7]={
         0x4C,0x8B,0xDC,0x48,0x83,0xEC,0x68
     };
@@ -672,6 +680,10 @@ static int validate_deferred_sites_after_early_queue(unsigned char *base)
         0x48,0x8B,0x4C,0xCA,0x08,0x48,0x85,0xC9,0x74,0x29,
         0x48,0x8B,0x09,0x48,0x8D,0x94
     };
+    frame_builder_prologue=g_runtime_profile==5 ?
+        g_frame_builder_asia_prologue:g_frame_builder_prologue;
+    frame_builder_prologue_size=g_runtime_profile==5 ?
+        sizeof(g_frame_builder_asia_prologue):sizeof(g_frame_builder_prologue);
     return validate_queue_layout_applied() &&
            validate_slice_result_store_sites(RENDER_QUEUE_RESULT_OFFSET) &&
            validate_handle_relays() &&
@@ -684,8 +696,8 @@ static int validate_deferred_sites_after_early_queue(unsigned char *base)
                   sizeof(g_face_cost_reader_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA),g_resource_wrapper_prologue,
                   sizeof(g_resource_wrapper_prologue))==0 &&
-           memcmp(ENGINE_ADDRESS(FRAME_BUILDER_RVA),g_frame_builder_prologue,
-                  sizeof(g_frame_builder_prologue))==0 &&
+           memcmp(ENGINE_ADDRESS(FRAME_BUILDER_RVA),frame_builder_prologue,
+                  frame_builder_prologue_size)==0 &&
            memcmp(ENGINE_ADDRESS(POST_CALL_OBJECT_RENDERERS_RVA),
                   g_post_call_object_renderers_prologue,
                   sizeof(g_post_call_object_renderers_prologue))==0 &&
