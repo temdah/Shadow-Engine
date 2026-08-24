@@ -5,8 +5,8 @@ static void trace_renderer_capacity(void *queue)
     unsigned char *base=(unsigned char *)queue;
     uint32_t entries,i,faces=0,active=0;
     DWORD now=GetTickCount();
-    if(now-g_last_residency_probe_tick<250U) return;
-    g_last_residency_probe_tick=now;
+    if(now-g_shadow_engine.renderer.last_residency_probe_tick<250U) return;
+    g_shadow_engine.renderer.last_residency_probe_tick=now;
     if(!base || !readable_memory(base+RENDER_QUEUE_COUNT_OFFSET,sizeof(uint32_t)))
         return;
     entries=*(uint32_t *)(base+RENDER_QUEUE_COUNT_OFFSET);
@@ -21,23 +21,23 @@ static void trace_renderer_capacity(void *queue)
         faces+=entry_faces;
     }
     if(faces>ORIGINAL_LOCAL_MAPS &&
-       InterlockedCompareExchange(&g_extra_face_use_seen,1,0)==0) {
+       InterlockedCompareExchange(&g_shadow_engine.renderer.extra_face_use_seen,1,0)==0) {
         append_log("STAGE_F_EXTRA_CAPACITY_FIRST_USE rendererCall=%ld queue=%p entries=%u activeEntries=%u faces=%u firstExtraMap=16 highestUsedMap=%u physicalMaps=24 overflow=%u",
-            (long)g_renderer_calls,queue,entries,active,faces,faces-1U,
+            (long)g_shadow_engine.renderer.renderer_calls,queue,entries,active,faces,faces-1U,
             faces>TOTAL_LOCAL_MAPS?faces-TOTAL_LOCAL_MAPS:0U);
     }
     /* Public builds keep a low-frequency capacity heartbeat for support logs.
      * Immediate first-use, overflow, clamp, and tail-integrity diagnostics are
      * reported separately, so successful play does not need a line per second. */
-    if(now-g_last_residency_log_tick>=30000U) {
+    if(now-g_shadow_engine.renderer.last_residency_log_tick>=30000U) {
         append_log("STAGE_F_RESIDENCY rendererCall=%ld queue=%p entries=%u activeEntries=%u faces=%u extraMapsInUse=%u physicalMaps=24 overflow=%u B4=%ld A8=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
-            (long)g_renderer_calls,queue,entries,active,faces,
+            (long)g_shadow_engine.renderer.renderer_calls,queue,entries,active,faces,
             faces>ORIGINAL_LOCAL_MAPS?faces-ORIGINAL_LOCAL_MAPS:0U,
             faces>TOTAL_LOCAL_MAPS?faces-TOTAL_LOCAL_MAPS:0U,
-            (long)g_observed_scheduler_b4,(long)g_observed_cache_a8,
-            (long)g_owner_reserve_state,(long)g_owner_capacity_after,
-            (long)g_owner_base_changed_during_manager);
-        g_last_residency_log_tick=now;
+            (long)g_shadow_engine.renderer.observed_scheduler_b4,(long)g_shadow_engine.renderer.observed_cache_a8,
+            (long)g_shadow_engine.renderer.owner_reserve_state,(long)g_shadow_engine.renderer.owner_capacity_after,
+            (long)g_shadow_engine.renderer.owner_base_changed_during_manager);
+        g_shadow_engine.renderer.last_residency_log_tick=now;
     }
 }
 /* The scheduler's B4 limit counts admitted dynamic-light records, but the
@@ -113,26 +113,26 @@ static void log_manual_queue_capture(const char *state,void *manager,void *queue
     uint32_t scan_entries=original_entries;
     uint32_t entry_index,map_cursor=0;
     void *tail=NULL;
-    LONG serial=InterlockedCompareExchange(&g_renderer_calls,0,0);
+    LONG serial=InterlockedCompareExchange(&g_shadow_engine.renderer.renderer_calls,0,0);
     if(scan_entries>TOTAL_LOCAL_MAPS+1U) scan_entries=TOTAL_LOCAL_MAPS+1U;
     if(base && readable_memory(base+RENDER_QUEUE_TAIL_OFFSET,sizeof(void *)))
         tail=*(void **)(base+RENDER_QUEUE_TAIL_OFFSET);
     append_log("STAGE_J_MANUAL_CAPTURE_BEGIN serial=%ld state=%s rendererCall=%ld manager=%p queue=%p tail=%p originalEntries=%u requestedFaces=%u admittedEntries=%u admittedFaces=%u B4=%ld A8=%ld ownerReserveState=%ld ownerCapacity=%ld ownerBaseChangesDuringManager=%ld",
-        (long)serial,state,(long)g_renderer_calls,manager,queue,tail,
+        (long)serial,state,(long)g_shadow_engine.renderer.renderer_calls,manager,queue,tail,
         original_entries,requested_faces,admitted_entries,admitted_faces,
-        (long)g_observed_scheduler_b4,(long)g_observed_cache_a8,
-        (long)g_owner_reserve_state,(long)g_owner_capacity_after,
-        (long)g_owner_base_changed_during_manager);
+        (long)g_shadow_engine.renderer.observed_scheduler_b4,(long)g_shadow_engine.renderer.observed_cache_a8,
+        (long)g_shadow_engine.renderer.owner_reserve_state,(long)g_shadow_engine.renderer.owner_capacity_after,
+        (long)g_shadow_engine.renderer.owner_base_changed_during_manager);
     append_log("STAGE_J_MANUAL_CAPTURE_HANDLES serial=%ld maps0to23=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X",
         (long)serial,
-        g_shadow_map_ids[0],g_shadow_map_ids[1],g_shadow_map_ids[2],
-        g_shadow_map_ids[3],g_shadow_map_ids[4],g_shadow_map_ids[5],
-        g_shadow_map_ids[6],g_shadow_map_ids[7],g_shadow_map_ids[8],
-        g_shadow_map_ids[9],g_shadow_map_ids[10],g_shadow_map_ids[11],
-        g_shadow_map_ids[12],g_shadow_map_ids[13],g_shadow_map_ids[14],
-        g_shadow_map_ids[15],g_shadow_map_ids[16],g_shadow_map_ids[17],
-        g_shadow_map_ids[18],g_shadow_map_ids[19],g_shadow_map_ids[20],
-        g_shadow_map_ids[21],g_shadow_map_ids[22],g_shadow_map_ids[23]);
+        g_shadow_engine.resources.shadow_map_ids[0],g_shadow_engine.resources.shadow_map_ids[1],g_shadow_engine.resources.shadow_map_ids[2],
+        g_shadow_engine.resources.shadow_map_ids[3],g_shadow_engine.resources.shadow_map_ids[4],g_shadow_engine.resources.shadow_map_ids[5],
+        g_shadow_engine.resources.shadow_map_ids[6],g_shadow_engine.resources.shadow_map_ids[7],g_shadow_engine.resources.shadow_map_ids[8],
+        g_shadow_engine.resources.shadow_map_ids[9],g_shadow_engine.resources.shadow_map_ids[10],g_shadow_engine.resources.shadow_map_ids[11],
+        g_shadow_engine.resources.shadow_map_ids[12],g_shadow_engine.resources.shadow_map_ids[13],g_shadow_engine.resources.shadow_map_ids[14],
+        g_shadow_engine.resources.shadow_map_ids[15],g_shadow_engine.resources.shadow_map_ids[16],g_shadow_engine.resources.shadow_map_ids[17],
+        g_shadow_engine.resources.shadow_map_ids[18],g_shadow_engine.resources.shadow_map_ids[19],g_shadow_engine.resources.shadow_map_ids[20],
+        g_shadow_engine.resources.shadow_map_ids[21],g_shadow_engine.resources.shadow_map_ids[22],g_shadow_engine.resources.shadow_map_ids[23]);
     if(!base) {
         append_log("STAGE_J_MANUAL_CAPTURE_END serial=%ld state=%s scannedEntries=0 scannedFaces=0 queueReadable=0",
             (long)serial,state);
@@ -175,17 +175,17 @@ static void poll_manual_capture(void *manager,void *queue,
     uint32_t admitted_entries,uint32_t admitted_faces)
 {
     LONG f8_down,f9_down;
-    if(!g_get_async_key_state) return;
-    f8_down=(g_get_async_key_state(VK_F8)&0x8000)!=0;
-    f9_down=(g_get_async_key_state(VK_F9)&0x8000)!=0;
-    if(f8_down && !InterlockedCompareExchange(&g_f8_was_down,0,0))
+    if(!g_shadow_engine.hooks.get_async_key_state) return;
+    f8_down=(g_shadow_engine.hooks.get_async_key_state(VK_F8)&0x8000)!=0;
+    f9_down=(g_shadow_engine.hooks.get_async_key_state(VK_F9)&0x8000)!=0;
+    if(f8_down && !InterlockedCompareExchange(&g_shadow_engine.renderer.f8_was_down,0,0))
         log_manual_queue_capture("BLACK_F8",manager,queue,original_entries,
             requested_faces,admitted_entries,admitted_faces);
-    if(f9_down && !InterlockedCompareExchange(&g_f9_was_down,0,0))
+    if(f9_down && !InterlockedCompareExchange(&g_shadow_engine.renderer.f9_was_down,0,0))
         log_manual_queue_capture("RECOVERED_F9",manager,queue,original_entries,
             requested_faces,admitted_entries,admitted_faces);
-    InterlockedExchange(&g_f8_was_down,f8_down);
-    InterlockedExchange(&g_f9_was_down,f9_down);
+    InterlockedExchange(&g_shadow_engine.renderer.f8_was_down,f8_down);
+    InterlockedExchange(&g_shadow_engine.renderer.f9_was_down,f9_down);
 }
 
 static void __fastcall hooked_renderer_queue(void *manager,void *queue,
@@ -196,28 +196,28 @@ static void __fastcall hooked_renderer_queue(void *manager,void *queue,
     uint32_t admitted_entries=clamp_renderer_queue_to_face_budget(queue,
         &original_entries,&requested_faces,&admitted_faces);
     trace_queue_tail_integrity(queue,"beforeOriginal",
-        &g_tail_invalid_before_renderer,original_entries,requested_faces);
+        &g_shadow_engine.renderer.tail_invalid_before_renderer,original_entries,requested_faces);
     if(requested_faces>(uint32_t)InterlockedCompareExchange(
-           &g_face_budget_peak_requested,0,0))
-        InterlockedExchange(&g_face_budget_peak_requested,(LONG)requested_faces);
+           &g_shadow_engine.renderer.face_budget_peak_requested,0,0))
+        InterlockedExchange(&g_shadow_engine.renderer.face_budget_peak_requested,(LONG)requested_faces);
     if(original_entries>admitted_entries) {
-        LONG clamp=InterlockedIncrement(&g_face_budget_clamps);
-        atomic_add_long(&g_face_budget_dropped_entries,
+        LONG clamp=InterlockedIncrement(&g_shadow_engine.renderer.face_budget_clamps);
+        atomic_add_long(&g_shadow_engine.renderer.face_budget_dropped_entries,
             (LONG)(original_entries-admitted_entries));
         if(clamp<=8 || (clamp&0xFF)==0)
             append_log("STAGE_F_FACE_BUDGET_CLAMP clamp=%ld queue=%p requestedEntries=%u requestedFaces=%u admittedEntries=%u admittedFaces=%u droppedEntries=%u physicalMaps=24 schedulerB4=%ld cacheA8=%ld",
                 (long)clamp,queue,original_entries,requested_faces,
                 admitted_entries,admitted_faces,
                 original_entries-admitted_entries,
-                (long)g_observed_scheduler_b4,(long)g_observed_cache_a8);
+                (long)g_shadow_engine.renderer.observed_scheduler_b4,(long)g_shadow_engine.renderer.observed_cache_a8);
     }
     poll_manual_capture(manager,queue,original_entries,requested_faces,
         admitted_entries,admitted_faces);
-    g_original_renderer_queue(manager,queue,argument3,argument4,argument5,
+    g_shadow_engine.hooks.original_renderer_queue(manager,queue,argument3,argument4,argument5,
         argument6,argument7,argument8,argument9);
     trace_queue_tail_integrity(queue,"afterOriginalBeforeCountRestore",
-        &g_tail_invalid_after_renderer,original_entries,requested_faces);
-    InterlockedIncrement(&g_renderer_calls);
+        &g_shadow_engine.renderer.tail_invalid_after_renderer,original_entries,requested_faces);
+    InterlockedIncrement(&g_shadow_engine.renderer.renderer_calls);
     trace_renderer_capacity(queue);
     if(queue && original_entries>admitted_entries)
         *(uint32_t *)((unsigned char *)queue+RENDER_QUEUE_COUNT_OFFSET)=
@@ -245,7 +245,7 @@ static uint32_t __fastcall hooked_face_cost_reader(void *queue)
             object=*(void **)slot;
             if(!object || !readable_memory((unsigned char *)object+0x20,
                                            sizeof(uint32_t))) {
-                InterlockedIncrement(&g_null_face_cost_skips);
+                InterlockedIncrement(&g_shadow_engine.renderer.null_face_cost_skips);
                 continue;
             }
             total+=*(uint32_t *)((unsigned char *)object+0x20);

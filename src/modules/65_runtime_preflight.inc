@@ -611,12 +611,12 @@ static int recover_owner_vector_reserve(void)
     target_rva=RESOLVED_ENGINE_RVA(OWNER_VECTOR_RESERVE_CALL_RVA)+5+
         (int64_t)rel;
     if(target_rva<g_runtime_state.image_size &&
-       readable_memory(g_disrupt_base+target_rva,sizeof(reserve_prologue)))
-        signature_probe_hex(g_disrupt_base+target_rva,
+       readable_memory(g_shadow_engine.bootstrap.disrupt_base+target_rva,sizeof(reserve_prologue)))
+        signature_probe_hex(g_shadow_engine.bootstrap.disrupt_base+target_rva,
             sizeof(reserve_prologue),target_hex,sizeof(target_hex));
     if(target_rva>=g_runtime_state.image_size ||
-       !readable_memory(g_disrupt_base+target_rva,sizeof(reserve_prologue)) ||
-       memcmp(g_disrupt_base+target_rva,reserve_prologue,
+       !readable_memory(g_shadow_engine.bootstrap.disrupt_base+target_rva,sizeof(reserve_prologue)) ||
+       memcmp(g_shadow_engine.bootstrap.disrupt_base+target_rva,reserve_prologue,
               sizeof(reserve_prologue))!=0) {
         append_log("OWNER_RESERVE_RECOVERY profile=%ld callsiteRva=0x%08X contextValid=1 targetRva=0x%08X targetValid=0 actualCall28=%s actualTarget16=%s noEngineMutation=1",
             (long)runtime_profile_id(),
@@ -658,9 +658,9 @@ static int validate_selected_profile_helpers(void)
     static const unsigned char random_mask[31]={
         1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,
         1,1,1,1,1,0,0,0,0,1,1,1,1};
-    int string_ok=memcmp(g_disrupt_base+runtime_string_assign_rva(),string_assign,
+    int string_ok=memcmp(g_shadow_engine.bootstrap.disrupt_base+runtime_string_assign_rva(),string_assign,
         sizeof(string_assign))==0;
-    int owner_ok=memcmp(g_disrupt_base+g_runtime_state.owner_vector_reserve_rva,
+    int owner_ok=memcmp(g_shadow_engine.bootstrap.disrupt_base+g_runtime_state.owner_vector_reserve_rva,
         owner_reserve,
         sizeof(owner_reserve))==0;
     int epilogue_ok=memcmp(ENGINE_ADDRESS(SLICE_RESULT_EPILOGUE_RVA),
@@ -668,7 +668,7 @@ static int validate_selected_profile_helpers(void)
     int profile_ok=resolver_masked_match(ENGINE_ADDRESS(PROFILE_CALLBACK_RVA),
         profile_callback,profile_mask,sizeof(profile_callback));
     int random_ok=resolver_masked_match(
-        g_disrupt_base+runtime_native_random_rva(),
+        g_shadow_engine.bootstrap.disrupt_base+runtime_native_random_rva(),
         random_pattern,random_mask,sizeof(random_pattern));
     append_log("RUNTIME_PROFILE_HELPERS profile=%ld stringAssign=%u ownerReserve=%u sliceEpilogue=%u profileCallback=%u nativeRandom=%u stringValueDependency=localNonNullPayloadPlus0x18",
         (long)runtime_profile_id(),string_ok ? 1U:0U,owner_ok ? 1U:0U,

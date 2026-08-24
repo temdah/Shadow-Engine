@@ -26,6 +26,8 @@ Completed structural slice:
 - Consolidated mutable runtime storage into one `ShadowEngineContext` with
   bootstrap, hook-binding, manager/renderer, resource/pass and external-result
   ownership boundaries.
+- Replaced all 98 transitional global-name aliases with 457 explicit subsystem
+  field accesses. The ASI is byte-identical before and after that rewrite.
 - Split the former 1,239-line bootstrap module into 678 lines of runtime
   preflight, 278 lines of patch orchestration and 287 lines of runtime entry /
   completion monitoring. Patch orchestration now owns ordering, not profile
@@ -45,8 +47,7 @@ Remaining architectural debt:
   lifecycle phases; each phase is now internally transactional. Engine objects
   created between phases are deliberately not treated as reversible code
   mutations.
-- Temporary compatibility aliases still expose the former global names to
-  already-validated hook code. Remove them module-by-module only after runtime
-  validation of the consolidated state layout.
+- The root context remains one process-lifetime static object because plain-C
+  detour callbacks need stable storage without object construction or teardown.
 - The unity build remains required until a runtime-tested interface boundary is
   available.

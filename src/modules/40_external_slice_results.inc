@@ -6,7 +6,7 @@ static LifecycleRecordSnapshot *find_lifecycle_record(void *record,int create)
     if(!record) return NULL;
     start=(uint32_t)(((uintptr_t)record>>4U)&(LIFECYCLE_RECORD_SLOTS-1U));
     for(index=0;index<LIFECYCLE_RECORD_SLOTS;++index) {
-        LifecycleRecordSnapshot *slot=&g_lifecycle_records[
+        LifecycleRecordSnapshot *slot=&g_shadow_engine.external_results.lifecycle_records[
             (start+index)&(LIFECYCLE_RECORD_SLOTS-1U)];
         void *current=(void *)slot->record;
         if(current==record) return slot;
@@ -16,7 +16,7 @@ static LifecycleRecordSnapshot *find_lifecycle_record(void *record,int create)
             if(!prior || prior==record) return slot;
         }
     }
-    if(create) InterlockedIncrement(&g_lifecycle_record_slot_misses);
+    if(create) InterlockedIncrement(&g_shadow_engine.external_results.lifecycle_record_slot_misses);
     return NULL;
 }
 static LifecycleRecordSnapshot *find_existing_lifecycle_record_fast(void *record)
@@ -25,7 +25,7 @@ static LifecycleRecordSnapshot *find_existing_lifecycle_record_fast(void *record
     if(!record) return NULL;
     start=(uint32_t)(((uintptr_t)record>>4U)&(LIFECYCLE_RECORD_SLOTS-1U));
     for(index=0;index<LIFECYCLE_RECORD_SLOTS;++index) {
-        LifecycleRecordSnapshot *slot=&g_lifecycle_records[
+        LifecycleRecordSnapshot *slot=&g_shadow_engine.external_results.lifecycle_records[
             (start+index)&(LIFECYCLE_RECORD_SLOTS-1U)];
         void *current=(void *)slot->record;
         if(current==record) return slot;
@@ -50,9 +50,9 @@ static uint32_t submit_external_resources(unsigned char active,void *renderer,
     LONG mode;
     if(submitted) *submitted=0;
     if(!context || !resources || !count || count>EXTRA_SLICE_RESULT_COUNT ||
-       !g_original_resource_wrapper) return 0;
+       !g_shadow_engine.hooks.original_resource_wrapper) return 0;
     mode=atomic_add_long((volatile LONG *)(context+0xBC8),1);
-    g_original_resource_wrapper(active,resources,count,NULL,0,context,0,
+    g_shadow_engine.hooks.original_resource_wrapper(active,resources,count,NULL,0,context,0,
         (uint32_t)mode);
     if(submitted) *submitted=1;
     return (uint32_t)mode;
@@ -88,27 +88,27 @@ static void __fastcall store_external_slice_result(void *inline_results,
     uint32_t external_index;
     if(!inline_results || index<NATIVE_SLICE_RESULT_COUNT ||
        index>=TOTAL_LOCAL_MAPS) {
-        InterlockedIncrement(&g_slice_result_external_store_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_store_failures);
         return;
     }
     record=(unsigned char *)inline_results-0x70U;
     slot=find_existing_lifecycle_record_fast(record);
     if(!slot) {
-        InterlockedIncrement(&g_slice_result_external_store_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_store_failures);
         return;
     }
     if(InterlockedCompareExchange(
        &slot->extra_slice_result_consumer_state,0,0)!=0) {
-        InterlockedIncrement(&g_slice_result_external_late_writes);
-        InterlockedIncrement(&g_slice_result_external_store_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_late_writes);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_store_failures);
         return;
     }
     InterlockedIncrement(&slot->extra_slice_result_active_writers);
     if(InterlockedCompareExchange(
        &slot->extra_slice_result_consumer_state,0,0)!=0) {
         InterlockedDecrement(&slot->extra_slice_result_active_writers);
-        InterlockedIncrement(&g_slice_result_external_late_writes);
-        InterlockedIncrement(&g_slice_result_external_store_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_late_writes);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_store_failures);
         return;
     }
     generation=InterlockedCompareExchange(&slot->generation,0,0);
@@ -121,8 +121,8 @@ static void __fastcall store_external_slice_result(void *inline_results,
        (stored_generation!=0 && stored_generation!=generation) ||
        (stored_builder!=0 && stored_builder!=builder_call)) {
         InterlockedDecrement(&slot->extra_slice_result_active_writers);
-        InterlockedIncrement(&g_slice_result_external_stale_lineage);
-        InterlockedIncrement(&g_slice_result_external_store_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_stale_lineage);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_store_failures);
         return;
     }
     external_index=index-NATIVE_SLICE_RESULT_COUNT;
@@ -131,10 +131,10 @@ static void __fastcall store_external_slice_result(void *inline_results,
         (PVOID volatile *)&slot->extra_slice_results[external_index],result);
     prior_mask=atomic_or_long(&slot->extra_slice_result_written_mask,bit);
     if(prior_mask&bit)
-        InterlockedIncrement(&g_slice_result_external_duplicate_indices);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_duplicate_indices);
     (void)previous;
-    if(result) InterlockedIncrement(&g_slice_result_external_nonnull);
-    else InterlockedIncrement(&g_slice_result_external_null);
+    if(result) InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_nonnull);
+    else InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_null);
     InterlockedDecrement(&slot->extra_slice_result_active_writers);
 }
 
@@ -150,7 +150,7 @@ static int consume_external_slice_results(void *renderer,
        &slot->extra_slice_result_consumer_state,1,0)!=0) return 1;
     if(!wait_for_external_slice_writers(slot)) {
         InterlockedExchange(&slot->extra_slice_result_consumer_state,0);
-        InterlockedIncrement(&g_slice_result_external_release_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_release_failures);
         return 0;
     }
     mask=InterlockedCompareExchange(&slot->extra_slice_result_written_mask,0,0);
@@ -166,8 +166,8 @@ static int consume_external_slice_results(void *renderer,
         &slot->extra_slice_result_builder_call,0,0);
     if(stored_generation!=generation || stored_builder!=builder_call) {
         InterlockedExchange(&slot->extra_slice_result_consumer_state,0);
-        InterlockedIncrement(&g_slice_result_external_stale_lineage);
-        InterlockedIncrement(&g_slice_result_external_release_failures);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_stale_lineage);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_release_failures);
         return 0;
     }
     for(i=0;i<EXTRA_SLICE_RESULT_COUNT;++i) {
@@ -177,7 +177,7 @@ static int consume_external_slice_results(void *renderer,
         if(!resource) continue;
         for(j=0;j<count;++j) if(resources[j]==resource) break;
         if(j<count)
-            InterlockedIncrement(&g_slice_result_external_duplicate_resources);
+            InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_duplicate_resources);
         resources[count++]=resource;
     }
     result_count=count_mask_bits((uint32_t)mask);
@@ -185,11 +185,11 @@ static int consume_external_slice_results(void *renderer,
         submit_external_resources(0,renderer,resources,count,&submitted);
         if(!submitted) {
             InterlockedExchange(&slot->extra_slice_result_consumer_state,0);
-            InterlockedIncrement(&g_slice_result_external_release_failures);
+            InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_release_failures);
             return 0;
         }
-        InterlockedIncrement(&g_slice_result_external_release_events);
-        atomic_add_long(&g_slice_result_external_release_resources,(LONG)count);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_release_events);
+        atomic_add_long(&g_shadow_engine.external_results.slice_result_external_release_resources,(LONG)count);
     }
     for(i=0;i<EXTRA_SLICE_RESULT_COUNT;++i)
         InterlockedExchangePointer(
@@ -198,10 +198,10 @@ static int consume_external_slice_results(void *renderer,
     InterlockedExchange(&slot->extra_slice_result_generation,0);
     InterlockedExchange(&slot->extra_slice_result_builder_call,0);
     InterlockedExchange(&slot->extra_slice_result_consumer_state,2);
-    atomic_add_long(&g_slice_result_external_consumed_results,
+    atomic_add_long(&g_shadow_engine.external_results.slice_result_external_consumed_results,
         (LONG)result_count);
     if(fallback)
-        InterlockedIncrement(&g_slice_result_external_release_fallbacks);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_release_fallbacks);
     return 1;
 }
 
@@ -215,11 +215,11 @@ static void reset_external_slice_cycle(LifecycleRecordSnapshot *slot)
     prior_consumer=InterlockedExchange(
         &slot->extra_slice_result_consumer_state,1);
     if(!wait_for_external_slice_writers(slot))
-        InterlockedIncrement(&g_slice_result_external_reset_pending);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_reset_pending);
     pending_mask=InterlockedExchange(
         &slot->extra_slice_result_written_mask,0);
     if(pending_mask || prior_consumer==1)
-        InterlockedIncrement(&g_slice_result_external_reset_pending);
+        InterlockedIncrement(&g_shadow_engine.external_results.slice_result_external_reset_pending);
     for(i=0;i<EXTRA_SLICE_RESULT_COUNT;++i)
         InterlockedExchangePointer(
             (PVOID volatile *)&slot->extra_slice_results[i],NULL);
@@ -232,56 +232,56 @@ static void maybe_log_external_slice_summary(void)
 {
     DWORD now=GetTickCount();
     LONG prior=InterlockedCompareExchange(
-        &g_last_external_slice_summary_tick,0,0);
+        &g_shadow_engine.external_results.last_external_slice_summary_tick,0,0);
     if((DWORD)(now-(DWORD)prior)<EXTERNAL_SLICE_SUMMARY_PERIOD_MS) return;
-    if(InterlockedCompareExchange(&g_last_external_slice_summary_tick,(LONG)now,
+    if(InterlockedCompareExchange(&g_shadow_engine.external_results.last_external_slice_summary_tick,(LONG)now,
        prior)!=prior) return;
     append_log("STAGE_Y_SUMMARY intervalMs=%u guardState=%ld nativeResultCount=%u externalResultCount=%u nativeNonNullStores=%ld nativeNullStores=%ld externalNonNullStores=%ld externalNullStores=%ld externalConsumedResults=%ld externalReleaseEvents=%ld externalReleaseResources=%ld storeFailures=%ld releaseFailures=%ld staleLineage=%ld lateWrites=%ld duplicateIndices=%ld duplicateResources=%ld releaseFallbacks=%ld resetPending=%ld overwriteFieldsProtected=F8,F100,F108,F110,F118 fieldMutation=externalSliceResultRouting diagnostics=minimal",
-        EXTERNAL_SLICE_SUMMARY_PERIOD_MS,(long)g_slice_result_guard_state,
+        EXTERNAL_SLICE_SUMMARY_PERIOD_MS,(long)g_shadow_engine.external_results.slice_result_guard_state,
         NATIVE_SLICE_RESULT_COUNT,EXTRA_SLICE_RESULT_COUNT,
-        (long)g_slice_result_native_nonnull,
-        (long)g_slice_result_native_null,
-        (long)g_slice_result_external_nonnull,
-        (long)g_slice_result_external_null,
-        (long)g_slice_result_external_consumed_results,
-        (long)g_slice_result_external_release_events,
-        (long)g_slice_result_external_release_resources,
-        (long)g_slice_result_external_store_failures,
-        (long)g_slice_result_external_release_failures,
-        (long)g_slice_result_external_stale_lineage,
-        (long)g_slice_result_external_late_writes,
-        (long)g_slice_result_external_duplicate_indices,
-        (long)g_slice_result_external_duplicate_resources,
-        (long)g_slice_result_external_release_fallbacks,
-        (long)g_slice_result_external_reset_pending);
+        (long)g_shadow_engine.external_results.slice_result_native_nonnull,
+        (long)g_shadow_engine.external_results.slice_result_native_null,
+        (long)g_shadow_engine.external_results.slice_result_external_nonnull,
+        (long)g_shadow_engine.external_results.slice_result_external_null,
+        (long)g_shadow_engine.external_results.slice_result_external_consumed_results,
+        (long)g_shadow_engine.external_results.slice_result_external_release_events,
+        (long)g_shadow_engine.external_results.slice_result_external_release_resources,
+        (long)g_shadow_engine.external_results.slice_result_external_store_failures,
+        (long)g_shadow_engine.external_results.slice_result_external_release_failures,
+        (long)g_shadow_engine.external_results.slice_result_external_stale_lineage,
+        (long)g_shadow_engine.external_results.slice_result_external_late_writes,
+        (long)g_shadow_engine.external_results.slice_result_external_duplicate_indices,
+        (long)g_shadow_engine.external_results.slice_result_external_duplicate_resources,
+        (long)g_shadow_engine.external_results.slice_result_external_release_fallbacks,
+        (long)g_shadow_engine.external_results.slice_result_external_reset_pending);
 }
 
 static void log_manual_external_slice_snapshot(const char *state,LONG serial)
 {
     append_log("STAGE_Y_MANUAL state=%s serial=%ld guardState=%ld nativeResultCount=%u externalResultCount=%u nativeNonNullStores=%ld nativeNullStores=%ld externalNonNullStores=%ld externalNullStores=%ld externalConsumedResults=%ld externalReleaseEvents=%ld externalReleaseResources=%ld storeFailures=%ld releaseFailures=%ld staleLineage=%ld lateWrites=%ld duplicateIndices=%ld duplicateResources=%ld releaseFallbacks=%ld resetPending=%ld overwriteFieldsProtected=F8,F100,F108,F110,F118 fieldMutation=externalSliceResultRouting diagnostics=minimal",
-        state,(long)serial,(long)g_slice_result_guard_state,
+        state,(long)serial,(long)g_shadow_engine.external_results.slice_result_guard_state,
         NATIVE_SLICE_RESULT_COUNT,EXTRA_SLICE_RESULT_COUNT,
-        (long)g_slice_result_native_nonnull,
-        (long)g_slice_result_native_null,
-        (long)g_slice_result_external_nonnull,
-        (long)g_slice_result_external_null,
-        (long)g_slice_result_external_consumed_results,
-        (long)g_slice_result_external_release_events,
-        (long)g_slice_result_external_release_resources,
-        (long)g_slice_result_external_store_failures,
-        (long)g_slice_result_external_release_failures,
-        (long)g_slice_result_external_stale_lineage,
-        (long)g_slice_result_external_late_writes,
-        (long)g_slice_result_external_duplicate_indices,
-        (long)g_slice_result_external_duplicate_resources,
-        (long)g_slice_result_external_release_fallbacks,
-        (long)g_slice_result_external_reset_pending);
+        (long)g_shadow_engine.external_results.slice_result_native_nonnull,
+        (long)g_shadow_engine.external_results.slice_result_native_null,
+        (long)g_shadow_engine.external_results.slice_result_external_nonnull,
+        (long)g_shadow_engine.external_results.slice_result_external_null,
+        (long)g_shadow_engine.external_results.slice_result_external_consumed_results,
+        (long)g_shadow_engine.external_results.slice_result_external_release_events,
+        (long)g_shadow_engine.external_results.slice_result_external_release_resources,
+        (long)g_shadow_engine.external_results.slice_result_external_store_failures,
+        (long)g_shadow_engine.external_results.slice_result_external_release_failures,
+        (long)g_shadow_engine.external_results.slice_result_external_stale_lineage,
+        (long)g_shadow_engine.external_results.slice_result_external_late_writes,
+        (long)g_shadow_engine.external_results.slice_result_external_duplicate_indices,
+        (long)g_shadow_engine.external_results.slice_result_external_duplicate_resources,
+        (long)g_shadow_engine.external_results.slice_result_external_release_fallbacks,
+        (long)g_shadow_engine.external_results.slice_result_external_reset_pending);
 }
 
 static void *__fastcall hooked_external_render_record_constructor(void *record)
 {
-    void *result=g_original_render_record_constructor(record);
-    LONG call=atomic_add_long(&g_lifecycle_constructor_calls,1)+1;
+    void *result=g_shadow_engine.hooks.original_render_record_constructor(record);
+    LONG call=atomic_add_long(&g_shadow_engine.external_results.lifecycle_constructor_calls,1)+1;
     LifecycleRecordSnapshot *slot=find_lifecycle_record(record,1);
     if(slot) {
         InterlockedIncrement(&slot->generation);
@@ -296,13 +296,13 @@ static void __fastcall hooked_external_frame_builder(void *argument1,
     void *argument2,void *record,uint64_t argument4,uint64_t argument5,
     uint64_t argument6,uint64_t argument7)
 {
-    LONG call=atomic_add_long(&g_lifecycle_builder_calls,1)+1;
+    LONG call=atomic_add_long(&g_shadow_engine.external_results.lifecycle_builder_calls,1)+1;
     LifecycleRecordSnapshot *slot=find_lifecycle_record(record,1);
     if(slot) {
         reset_external_slice_cycle(slot);
         InterlockedExchange(&slot->builder_call,call);
     }
-    g_original_frame_builder(argument1,argument2,record,argument4,argument5,
+    g_shadow_engine.hooks.original_frame_builder(argument1,argument2,record,argument4,argument5,
         argument6,argument7);
 }
 
@@ -312,8 +312,8 @@ static void __fastcall hooked_external_post_call_object_renderers(
     uint64_t argument8,uint64_t argument9,uint64_t argument10)
 {
     LifecycleRecordSnapshot *slot=find_existing_lifecycle_record_fast(record);
-    InterlockedIncrement(&g_postcall_calls);
-    g_original_post_call_object_renderers(argument1,argument2,argument3,
+    InterlockedIncrement(&g_shadow_engine.external_results.postcall_calls);
+    g_shadow_engine.hooks.original_post_call_object_renderers(argument1,argument2,argument3,
         argument4,argument5,argument6,record,argument8,argument9,argument10);
     consume_external_slice_results(argument1,slot,0);
     maybe_log_external_slice_summary();
@@ -323,9 +323,9 @@ static void __fastcall hooked_external_render_record_release(void *argument1,
     void *record,unsigned char argument3)
 {
     LifecycleRecordSnapshot *slot=find_existing_lifecycle_record_fast(record);
-    InterlockedIncrement(&g_lifecycle_release_calls);
+    InterlockedIncrement(&g_shadow_engine.external_results.lifecycle_release_calls);
     if(slot && InterlockedCompareExchange(
        &slot->extra_slice_result_written_mask,0,0)!=0)
         consume_external_slice_results(argument1,slot,1);
-    g_original_render_record_release(argument1,record,argument3);
+    g_shadow_engine.hooks.original_render_record_release(argument1,record,argument3);
 }

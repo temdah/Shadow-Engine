@@ -14,7 +14,7 @@ static int prepare_early_patch_plan(HMODULE disrupt,ShadowPatchPlan *plan)
     unsigned char *base=(unsigned char *)disrupt;
     if(!plan) return 0;
     memset(plan,0,sizeof(*plan));
-    g_disrupt_base=base;
+    g_shadow_engine.bootstrap.disrupt_base=base;
     if(!select_runtime_profile(base)) {
         run_signature_probe(base);
         append_log("STAGE_D_ABORT reason=unknownRuntimeProfile diagnosticMapComplete=1 noEngineMutation=1");
@@ -89,19 +89,19 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
         g_render_record_constructor_prologue,
         sizeof(g_render_record_constructor_prologue),
         hooked_external_render_record_constructor,
-        (void **)&g_original_render_record_constructor)) {
+        (void **)&g_shadow_engine.hooks.original_render_record_constructor)) {
         failed_step="render_record_constructor";
         goto rollback_early;
     }
     if(!install_detour(ENGINE_ADDRESS(RESOURCE_CONSTRUCTOR_RVA),g_resource_prologue,
                        sizeof(g_resource_prologue),hooked_resource_constructor,
-                       (void **)&g_original_resource_constructor)) {
+                       (void **)&g_shadow_engine.hooks.original_resource_constructor)) {
         failed_step="resource_constructor";
         goto rollback_early;
     }
     if(!install_detour(ENGINE_ADDRESS(REGISTER_PASS_RVA),g_register_pass_prologue,
                        sizeof(g_register_pass_prologue),hooked_register_pass,
-                       (void **)&g_original_register_pass)) {
+                       (void **)&g_shadow_engine.hooks.original_register_pass)) {
         failed_step="register_pass";
         goto rollback_early;
     }
@@ -109,7 +109,7 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
         failed_step="transaction_commit";
         goto rollback_early;
     }
-    InterlockedExchange(&g_hooks_installed,1);
+    InterlockedExchange(&g_shadow_engine.bootstrap.hooks_installed,1);
     append_log("STAGE_M_EARLY_HOOKS_INSTALLED nativeLoopMaps=24 nativeManagerMaps=16 externalMaps=8 pairedExtraPasses=16 passTableAllocatorHook=0 readOnlyPassTableVerification=1 requiredPassSlots=50 earlyQueueLayout=25 renderRecordConstructorExternalState=1 diagnostics=minimal downstreamHandleRouting=0 downstreamPassRouting=0 schedulerChanged=0 managerHook=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
         (unsigned)transaction.write_count,
         (unsigned)transaction.allocation_count);
@@ -117,7 +117,7 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
 
 rollback_early:
     rollback=patch_transaction_rollback(&transaction);
-    InterlockedExchange(&g_hooks_installed,
+    InterlockedExchange(&g_shadow_engine.bootstrap.hooks_installed,
         rollback.failed_restores==0 ? 0:-1);
     append_log("STAGE_E_TRANSACTION_ROLLBACK phase=early failedStep=%s appliedWrites=%u restoredWrites=%u failedRestores=%u releasedAllocations=%u rollbackComplete=%u beforeQueueConstruction=1",
         failed_step ? failed_step:"unknown",
@@ -145,22 +145,22 @@ static int install_deferred_downstream(void)
         g_patch_plan.frame_builder_prologue;
     size_t frame_builder_prologue_size=
         g_patch_plan.frame_builder_prologue_size;
-    if(InterlockedCompareExchange(&g_downstream_state,1,0)!=0) return 0;
+    if(InterlockedCompareExchange(&g_shadow_engine.bootstrap.downstream_state,1,0)!=0) return 0;
     if(!g_patch_plan.prepared ||
        g_patch_plan.profile!=g_runtime_state.selected ||
        !frame_builder_prologue || !frame_builder_prologue_size) {
         append_log("STAGE_E_DOWNSTREAM_ABORT invalidPreparedPlan=1 noDeferredMutation=1");
-        InterlockedExchange(&g_downstream_state,-1);
+        InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
         return 0;
     }
-    if(!validate_deferred_sites_after_early_queue(g_disrupt_base)) {
+    if(!validate_deferred_sites_after_early_queue(g_shadow_engine.bootstrap.disrupt_base)) {
         append_log("STAGE_E_DOWNSTREAM_ABORT signaturesChangedDuringDeferral=1");
-        InterlockedExchange(&g_downstream_state,-1);
+        InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
         return 0;
     }
     if(!patch_transaction_begin(&transaction,"deferred",-1)) {
         append_log("STAGE_E_DOWNSTREAM_ABORT transactionBusy=1 noDeferredMutation=1");
-        InterlockedExchange(&g_downstream_state,-1);
+        InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
         return 0;
     }
     if(!install_slice_result_bounds_relays()) {
@@ -179,30 +179,30 @@ static int install_deferred_downstream(void)
         failed_step="scheduler";
         goto rollback_deferred;
     }
-    g_profile_callback=(ProfileCallbackFn)ENGINE_ADDRESS(PROFILE_CALLBACK_RVA);
-    g_owner_vector_reserve=(OwnerVectorReserveFn)
-        (g_disrupt_base+g_runtime_state.owner_vector_reserve_rva);
+    g_shadow_engine.hooks.profile_callback=(ProfileCallbackFn)ENGINE_ADDRESS(PROFILE_CALLBACK_RVA);
+    g_shadow_engine.hooks.owner_vector_reserve=(OwnerVectorReserveFn)
+        (g_shadow_engine.bootstrap.disrupt_base+g_runtime_state.owner_vector_reserve_rva);
     if(!install_manager_detour()) {
         failed_step="manager_detour";
         goto rollback_deferred;
     }
     if(!install_detour(ENGINE_ADDRESS(RENDER_QUEUE_PROCESS_RVA),
         g_renderer_queue_prologue,sizeof(g_renderer_queue_prologue),
-        hooked_renderer_queue,(void **)&g_original_renderer_queue)) {
+        hooked_renderer_queue,(void **)&g_shadow_engine.hooks.original_renderer_queue)) {
         failed_step="renderer_queue";
         goto rollback_deferred;
     }
     if(!install_detour(ENGINE_ADDRESS(FACE_COST_READER_RVA),
         g_face_cost_reader_prologue,sizeof(g_face_cost_reader_prologue),
-        hooked_face_cost_reader,(void **)&g_original_face_cost_reader)) {
+        hooked_face_cost_reader,(void **)&g_shadow_engine.hooks.original_face_cost_reader)) {
         failed_step="face_cost_reader";
         goto rollback_deferred;
     }
-    g_original_resource_wrapper=(ResourceWrapperFn)
+    g_shadow_engine.hooks.original_resource_wrapper=(ResourceWrapperFn)
         ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA);
     if(!install_detour(ENGINE_ADDRESS(FRAME_BUILDER_RVA),
         frame_builder_prologue,frame_builder_prologue_size,
-        hooked_external_frame_builder,(void **)&g_original_frame_builder)) {
+        hooked_external_frame_builder,(void **)&g_shadow_engine.hooks.original_frame_builder)) {
         failed_step="frame_builder";
         goto rollback_deferred;
     }
@@ -210,7 +210,7 @@ static int install_deferred_downstream(void)
         g_post_call_object_renderers_prologue,
         sizeof(g_post_call_object_renderers_prologue),
         hooked_external_post_call_object_renderers,
-        (void **)&g_original_post_call_object_renderers)) {
+        (void **)&g_shadow_engine.hooks.original_post_call_object_renderers)) {
         failed_step="post_call_object_renderers";
         goto rollback_deferred;
     }
@@ -218,7 +218,7 @@ static int install_deferred_downstream(void)
         g_render_record_release_prologue,
         sizeof(g_render_record_release_prologue),
         hooked_external_render_record_release,
-        (void **)&g_original_render_record_release)) {
+        (void **)&g_shadow_engine.hooks.original_render_record_release)) {
         failed_step="render_record_release";
         goto rollback_deferred;
     }
@@ -226,20 +226,20 @@ static int install_deferred_downstream(void)
         failed_step="transaction_commit";
         goto rollback_deferred;
     }
-    InterlockedExchange(&g_lifecycle_hooks_state,2);
+    InterlockedExchange(&g_shadow_engine.external_results.lifecycle_hooks_state,2);
     user32=GetModuleHandleW(L"user32.dll");
     if(!user32) user32=LoadLibraryW(L"user32.dll");
-    if(user32) g_get_async_key_state=(GetAsyncKeyStateFn)
+    if(user32) g_shadow_engine.hooks.get_async_key_state=(GetAsyncKeyStateFn)
         GetProcAddress(user32,"GetAsyncKeyState");
-    InterlockedExchange(&g_renderer_hook_state,2);
-    InterlockedExchange(&g_routing_state,2);
-    InterlockedExchange(&g_downstream_state,2);
+    InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,2);
+    InterlockedExchange(&g_shadow_engine.resources.routing_state,2);
+    InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,2);
     append_log("STAGE_M_DOWNSTREAM_INSTALLED afterConstructors=1 stabilizationMs=%u physicalQueueEntries=25 queueLayoutAppliedBeforeConstruction=1 physicalFaceBudget=24 wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 relocatedTailReferences=%u handleConsumers=3 passIndexConsumers=2 sliceResultBoundsRelays=2 nativeSliceResults=%u externalSliceResults=7 routedSliceIndices=17-23 externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B schedulerInit=16 schedulerFloor=16 schedulerUpper=16 schedulerUpperRva=0x2E9C3B cacheOwnerCeiling=4 ownerVectorPhysicalReserve=8 ownerRecordStride=0x700 reserveRva=0x319160 rendererCapacityProbe=1 queueTailIntegrityProbe=1 nullFaceCostGuard=1 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 renderRecordLifecycleHooks=constructor,builder,postCallObjectRenderers,release lifecycleRecordSlots=%u manualQueueCapture=%u blackKey=F8 recoveredKey=F9 repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal firstManagerProfileCallback=1 fullCandidatePassthrough=1 filtering=0 limiter=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
         DOWNSTREAM_STABILIZE_MS,
         (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])),
         NATIVE_SLICE_RESULT_COUNT,
         LIFECYCLE_RECORD_SLOTS,
-        g_get_async_key_state ? 1U : 0U,
+        g_shadow_engine.hooks.get_async_key_state ? 1U : 0U,
         (unsigned)transaction.write_count,
         (unsigned)transaction.allocation_count);
     return 1;
@@ -247,23 +247,23 @@ static int install_deferred_downstream(void)
 rollback_deferred:
     rollback=patch_transaction_rollback(&transaction);
     if(rollback.failed_restores==0) {
-        g_profile_callback=NULL;
-        g_owner_vector_reserve=NULL;
-        g_original_resource_wrapper=NULL;
-        InterlockedExchange(&g_slice_result_guard_state,-1);
-        InterlockedExchange(&g_lifecycle_hooks_state,-1);
-        InterlockedExchange(&g_renderer_hook_state,-1);
-        InterlockedExchange(&g_routing_state,-1);
-        InterlockedExchange(&g_downstream_state,-1);
+        g_shadow_engine.hooks.profile_callback=NULL;
+        g_shadow_engine.hooks.owner_vector_reserve=NULL;
+        g_shadow_engine.hooks.original_resource_wrapper=NULL;
+        InterlockedExchange(&g_shadow_engine.external_results.slice_result_guard_state,-1);
+        InterlockedExchange(&g_shadow_engine.external_results.lifecycle_hooks_state,-1);
+        InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,-1);
+        InterlockedExchange(&g_shadow_engine.resources.routing_state,-1);
+        InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
     } else {
         /* Preserve helper/original pointers for any hook whose executable
          * bytes could not be restored. Mark the phase unrecoverable rather
          * than creating a use-after-free/null-call path. */
-        InterlockedExchange(&g_slice_result_guard_state,-2);
-        InterlockedExchange(&g_lifecycle_hooks_state,-2);
-        InterlockedExchange(&g_renderer_hook_state,-2);
-        InterlockedExchange(&g_routing_state,-2);
-        InterlockedExchange(&g_downstream_state,-2);
+        InterlockedExchange(&g_shadow_engine.external_results.slice_result_guard_state,-2);
+        InterlockedExchange(&g_shadow_engine.external_results.lifecycle_hooks_state,-2);
+        InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,-2);
+        InterlockedExchange(&g_shadow_engine.resources.routing_state,-2);
+        InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-2);
     }
     append_log("STAGE_E_TRANSACTION_ROLLBACK phase=deferred failedStep=%s appliedWrites=%u restoredWrites=%u failedRestores=%u releasedAllocations=%u rollbackComplete=%u earlyPhaseRetained=1",
         failed_step ? failed_step:"unknown",

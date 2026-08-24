@@ -223,4 +223,4 @@ static uint64_t resolve_engine_rva(uint64_t rva)
 }
 
 #define RESOLVED_ENGINE_RVA(rva) resolve_engine_rva((uint64_t)(rva))
-#define ENGINE_ADDRESS(rva) (g_disrupt_base+RESOLVED_ENGINE_RVA(rva))
+#define ENGINE_ADDRESS(rva) (g_shadow_engine.bootstrap.disrupt_base+RESOLVED_ENGINE_RVA(rva))

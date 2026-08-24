@@ -27,19 +27,19 @@ static int begin_session_log(void)
     DWORD written;
     HANDLE file;
     SYSTEMTIME local_time,utc_time;
-    LONG state=InterlockedCompareExchange(&g_session_log_state,1,0);
+    LONG state=InterlockedCompareExchange(&g_shadow_engine.bootstrap.session_log_state,1,0);
     if(state==2) return 1;
     if(state!=0) return 0;
-    lstrcpynW(path,g_snapshot.bin_directory,MAX_PATH);
+    lstrcpynW(path,g_shadow_engine.bootstrap.snapshot.bin_directory,MAX_PATH);
     if(lstrlenW(path)+22>=MAX_PATH) {
-        InterlockedExchange(&g_session_log_state,-1);
+        InterlockedExchange(&g_shadow_engine.bootstrap.session_log_state,-1);
         return 0;
     }
     lstrcatW(path,L"ShadowEnginePatch.log");
     file=CreateFileW(path,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
                      NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
     if(file==INVALID_HANDLE_VALUE) {
-        InterlockedExchange(&g_session_log_state,-1);
+        InterlockedExchange(&g_shadow_engine.bootstrap.session_log_state,-1);
         return 0;
     }
     GetLocalTime(&local_time);
@@ -59,7 +59,7 @@ static int begin_session_log(void)
     WriteFile(file,line,(DWORD)lstrlenA(line),&written,NULL);
     FlushFileBuffers(file);
     CloseHandle(file);
-    InterlockedExchange(&g_session_log_state,2);
+    InterlockedExchange(&g_shadow_engine.bootstrap.session_log_state,2);
     return 1;
 }
 
@@ -70,8 +70,8 @@ static void append_log(const char *format,...)
     DWORD written;
     HANDLE file;
     va_list args;
-    if(InterlockedCompareExchange(&g_session_log_state,2,2)!=2) return;
-    lstrcpynW(path,g_snapshot.bin_directory,MAX_PATH);
+    if(InterlockedCompareExchange(&g_shadow_engine.bootstrap.session_log_state,2,2)!=2) return;
+    lstrcpynW(path,g_shadow_engine.bootstrap.snapshot.bin_directory,MAX_PATH);
     if(lstrlenW(path)+22>=MAX_PATH) return;
     lstrcatW(path,L"ShadowEnginePatch.log");
     va_start(args,format);
@@ -88,9 +88,9 @@ static void append_log(const char *format,...)
 
 static double elapsed_ms(LARGE_INTEGER value)
 {
-    if(!g_snapshot.frequency.QuadPart) return 0.0;
-    return (double)(value.QuadPart-g_snapshot.initialize_time.QuadPart)*1000.0/
-           (double)g_snapshot.frequency.QuadPart;
+    if(!g_shadow_engine.bootstrap.snapshot.frequency.QuadPart) return 0.0;
+    return (double)(value.QuadPart-g_shadow_engine.bootstrap.snapshot.initialize_time.QuadPart)*1000.0/
+           (double)g_shadow_engine.bootstrap.snapshot.frequency.QuadPart;
 }
 
 static int raw_write_bytes(unsigned char *target,const void *data,size_t size)

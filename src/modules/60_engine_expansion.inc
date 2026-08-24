@@ -13,13 +13,13 @@ static void snapshot_native_handles(void *manager)
         for(j=0;j<i;++j) if(handles[j]==handles[i]) break;
         if(j==i) ++distinct;
     }
-    memcpy(g_native_handles,handles,sizeof(handles));
-    memcpy(g_shadow_map_ids,handles,sizeof(handles));
-    memcpy(g_shadow_map_ids+ORIGINAL_LOCAL_MAPS,g_extra_handles,
-           sizeof(g_extra_handles));
-    g_last_resource_manager=manager;
-    InterlockedExchange(&g_native_nonzero_handles,nonzero);
-    InterlockedExchange(&g_native_distinct_handles,distinct);
+    memcpy(g_shadow_engine.resources.native_handles,handles,sizeof(handles));
+    memcpy(g_shadow_engine.resources.shadow_map_ids,handles,sizeof(handles));
+    memcpy(g_shadow_engine.resources.shadow_map_ids+ORIGINAL_LOCAL_MAPS,g_shadow_engine.resources.extra_handles,
+           sizeof(g_shadow_engine.resources.extra_handles));
+    g_shadow_engine.resources.last_resource_manager=manager;
+    InterlockedExchange(&g_shadow_engine.resources.native_nonzero_handles,nonzero);
+    InterlockedExchange(&g_shadow_engine.resources.native_distinct_handles,distinct);
 }
 static int install_inline_relay(uint64_t rva,const unsigned char *expected,
                                 size_t overwrite,const unsigned char *body,
@@ -173,7 +173,7 @@ static int install_slice_result_bounds_relays(void)
                                            /* mov rax,[rbp+20a0] */
     body[n++]=0x48; body[n++]=0x89; body[n++]=0x04; body[n++]=0xD1;
                                            /* mov [rcx+rdx*8],rax */
-    emit_atomic_increment(body,&n,&g_slice_result_native_nonnull);
+    emit_atomic_increment(body,&n,&g_shadow_engine.external_results.slice_result_native_nonnull);
     emit_relay_jump(body,&n,epilogue);
     external_label=n;
     if(external_label-(external_branch+1)>127U) return 0;
@@ -200,7 +200,7 @@ static int install_slice_result_bounds_relays(void)
     body[n++]=0x48; body[n++]=0xC7; body[n++]=0x04; body[n++]=0xD0;
     body[n++]=0; body[n++]=0; body[n++]=0; body[n++]=0;
                                            /* mov qword [rax+rdx*8],0 */
-    emit_atomic_increment(body,&n,&g_slice_result_native_null);
+    emit_atomic_increment(body,&n,&g_shadow_engine.external_results.slice_result_native_null);
     emit_relay_jump(body,&n,epilogue);
     external_label=n;
     if(external_label-(external_branch+1)>127U) return 0;
@@ -215,7 +215,7 @@ static int install_slice_result_bounds_relays(void)
     if(!install_inline_relay(SLICE_RESULT_NULL_RVA,expected_null,
                              sizeof(expected_null),body,n)) return 0;
 
-    InterlockedExchange(&g_slice_result_guard_state,2);
+    InterlockedExchange(&g_shadow_engine.external_results.slice_result_guard_state,2);
     return 1;
 }
 
@@ -239,7 +239,7 @@ static int install_handle_relays(void)
 {
     unsigned char body[64];
     size_t n;
-    const uint64_t table=(uint64_t)(uintptr_t)g_shadow_map_ids;
+    const uint64_t table=(uint64_t)(uintptr_t)g_shadow_engine.resources.shadow_map_ids;
     static const unsigned char exp_edx[18]={
         0x8B,0x94,0x87,0x10,0x04,0,0,0x44,0x89,0x55,0x54,
         0xC7,0x45,0x58,1,0,0,0};
@@ -349,10 +349,10 @@ static int install_map_range_loop_extension(void)
     unsigned char body[128];
     unsigned char expected_store[27];
     size_t n=0;
-    uint64_t handle_address=(uint64_t)(uintptr_t)&g_extra_handles[0];
-    uint64_t companion_address=(uint64_t)(uintptr_t)&g_extra_companions[0][0];
+    uint64_t handle_address=(uint64_t)(uintptr_t)&g_shadow_engine.resources.extra_handles[0];
+    uint64_t companion_address=(uint64_t)(uintptr_t)&g_shadow_engine.resources.extra_companions[0][0];
     uint64_t random_function=(uint64_t)(uintptr_t)
-        (g_disrupt_base+runtime_native_random_rva());
+        (g_shadow_engine.bootstrap.disrupt_base+runtime_native_random_rva());
     static const unsigned char expected_bound[9]={
         0x83,0xFF,0x10,0x0F,0x82,0xEE,0xFE,0xFF,0xFF
     };
@@ -441,7 +441,7 @@ static int get_shadow_pass_table(void *registry,void ***slot_array,
                                      sizeof(void *))) return 0;
     table=*(unsigned char **)((unsigned char *)registry+8U);
     if(!table) return 0;
-    g_pass_table_base=table;
+    g_shadow_engine.resources.pass_table_base=table;
     record=table+SHADOW_PASS_CATEGORY*16U;
     if(!readable_memory(record,16U)) return 0;
     slots=*(void ***)record;
@@ -484,57 +484,57 @@ static void __fastcall hooked_resource_constructor(void *manager)
 {
     uint32_t i,j;
     LONG nonzero=0,distinct=0;
-    g_original_resource_constructor(manager);
+    g_shadow_engine.hooks.original_resource_constructor(manager);
     snapshot_native_handles(manager);
     if(manager) {
-        InterlockedExchange(&g_observed_scheduler_b4,
+        InterlockedExchange(&g_shadow_engine.renderer.observed_scheduler_b4,
             (LONG)*(uint32_t *)((unsigned char *)manager+0xB4));
         append_log("STAGE_E_CONSTRUCTOR_NATIVE_STATE manager=%p B4=%ld A8=%u downstreamRoutingDeferred=1 schedulerPatchDeferred=1 managerHookDeferred=1",
-            manager,(long)g_observed_scheduler_b4,
+            manager,(long)g_shadow_engine.renderer.observed_scheduler_b4,
             *(uint32_t *)((unsigned char *)manager+0xA8));
     }
     for(i=0;i<EXTRA_LOCAL_MAPS;++i) {
-        int unique=g_extra_handles[i]!=0;
-        if(g_extra_handles[i]) ++nonzero;
+        int unique=g_shadow_engine.resources.extra_handles[i]!=0;
+        if(g_shadow_engine.resources.extra_handles[i]) ++nonzero;
         for(j=0;unique && j<ORIGINAL_LOCAL_MAPS;++j)
-            if(g_extra_handles[i]==g_native_handles[j]) unique=0;
+            if(g_shadow_engine.resources.extra_handles[i]==g_shadow_engine.resources.native_handles[j]) unique=0;
         for(j=0;unique && j<i;++j)
-            if(g_extra_handles[i]==g_extra_handles[j]) unique=0;
+            if(g_shadow_engine.resources.extra_handles[i]==g_shadow_engine.resources.extra_handles[j]) unique=0;
         if(unique) ++distinct;
     }
-    InterlockedExchange(&g_range_nonzero_handles,nonzero);
-    InterlockedExchange(&g_range_distinct_handles,distinct);
-    InterlockedExchange(&g_range_resource_state,
+    InterlockedExchange(&g_shadow_engine.resources.range_nonzero_handles,nonzero);
+    InterlockedExchange(&g_shadow_engine.resources.range_distinct_handles,distinct);
+    InterlockedExchange(&g_shadow_engine.resources.range_resource_state,
         (nonzero==EXTRA_LOCAL_MAPS && distinct==EXTRA_LOCAL_MAPS) ? 2 : -1);
     if(nonzero==EXTRA_LOCAL_MAPS && distinct==EXTRA_LOCAL_MAPS) {
         append_log("STAGE_E_HANDLE_TABLE_READY table=%p nativeEntries=16 externalEntries=8 handle16=%08X handle23=%08X downstreamRoutingDeferred=1",
-            (void *)g_shadow_map_ids,g_shadow_map_ids[16],g_shadow_map_ids[23]);
+            (void *)g_shadow_engine.resources.shadow_map_ids,g_shadow_engine.resources.shadow_map_ids[16],g_shadow_engine.resources.shadow_map_ids[23]);
     }
     append_log("STAGE_E_RESOURCE_RESULT handles=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X nonZero=%ld distinctFromNativeAndEachOther=%ld externalCompanions=%p storedExternally=8 nativeLoopExecuted24=1 nativeManagerLayoutChanged=0 downstreamRoutingDeferred=1",
-        g_extra_handles[0],g_extra_handles[1],g_extra_handles[2],g_extra_handles[3],
-        g_extra_handles[4],g_extra_handles[5],g_extra_handles[6],g_extra_handles[7],
-        (long)nonzero,(long)distinct,(void *)&g_extra_companions[0][0]);
+        g_shadow_engine.resources.extra_handles[0],g_shadow_engine.resources.extra_handles[1],g_shadow_engine.resources.extra_handles[2],g_shadow_engine.resources.extra_handles[3],
+        g_shadow_engine.resources.extra_handles[4],g_shadow_engine.resources.extra_handles[5],g_shadow_engine.resources.extra_handles[6],g_shadow_engine.resources.extra_handles[7],
+        (long)nonzero,(long)distinct,(void *)&g_shadow_engine.resources.extra_companions[0][0]);
     for(i=0;i<EXTRA_LOCAL_MAPS;++i) {
         append_log("STAGE_E_MAP map=%u pass=%u handle=%08X nonZero=%u companion=%p downstreamRoutingDeferred=1",
-            ORIGINAL_LOCAL_MAPS+i,ORIGINAL_LOCAL_MAPS+i+1,g_extra_handles[i],
-            g_extra_handles[i] ? 1U : 0U,(void *)&g_extra_companions[i][0]);
+            ORIGINAL_LOCAL_MAPS+i,ORIGINAL_LOCAL_MAPS+i+1,g_shadow_engine.resources.extra_handles[i],
+            g_shadow_engine.resources.extra_handles[i] ? 1U : 0U,(void *)&g_shadow_engine.resources.extra_companions[i][0]);
         }
-    InterlockedIncrement(&g_resource_hits);
+    InterlockedIncrement(&g_shadow_engine.resources.resource_hits);
 }
 
 static void __fastcall hooked_register_pass(void *registry,uint32_t key,
     uint64_t name_value,const char *category,uint32_t mode,uint32_t enabled)
 {
-    g_original_register_pass(registry,key,name_value,category,mode,enabled);
-    InterlockedIncrement(&g_register_hits);
+    g_shadow_engine.hooks.original_register_pass(registry,key,name_value,category,mode,enabled);
+    InterlockedIncrement(&g_shadow_engine.resources.register_hits);
     if(!category) return;
     if(strcmp(category,"Shadow")==0) {
-        InterlockedIncrement(&g_shadow_hits);
+        InterlockedIncrement(&g_shadow_engine.resources.shadow_hits);
         if(key==0x200CU) {
             StringAssignFn assign=(StringAssignFn)
-                (g_disrupt_base+runtime_string_assign_rva());
-            InterlockedExchange(&g_last_native_shadow_seen,1);
-            if(InterlockedCompareExchange(&g_range_pass_state,1,0)==0) {
+                (g_shadow_engine.bootstrap.disrupt_base+runtime_string_assign_rva());
+            InterlockedExchange(&g_shadow_engine.resources.last_native_shadow_seen,1);
+            if(InterlockedCompareExchange(&g_shadow_engine.resources.range_pass_state,1,0)==0) {
                 uint32_t i;
                 uint32_t slot_count=0,maximum_key=0;
                 uint32_t added_nonzero=0,added_distinct=0;
@@ -542,19 +542,19 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
                 char name[32];
                 if(!get_shadow_pass_table(registry,&slot_array,&slot_count,
                                           &maximum_key)) {
-                    InterlockedExchange(&g_range_pass_state,-1);
-                    InterlockedExchange(&g_pass_table_state,-1);
+                    InterlockedExchange(&g_shadow_engine.resources.range_pass_state,-1);
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_state,-1);
                     append_log("STAGE_L_PASS_REGISTER_ABORT reason=physicalPassTableTooSmall requiredMaxKey=0x%04X requiredSlots=%u extraRegistrationAttempted=0 overflowPrevented=1 allocatorMutation=0",
                         REQUIRED_PASS_MAX_KEY,
                         REQUIRED_PASS_TABLE_SLOTS);
                     return;
                 }
-                InterlockedExchange(&g_pass_table_slots,(LONG)slot_count);
-                InterlockedExchange(&g_pass_table_stored_max_key,
+                InterlockedExchange(&g_shadow_engine.resources.pass_table_slots,(LONG)slot_count);
+                InterlockedExchange(&g_shadow_engine.resources.pass_table_stored_max_key,
                                     (LONG)maximum_key);
-                InterlockedExchange(&g_pass_table_state,1);
+                InterlockedExchange(&g_shadow_engine.resources.pass_table_state,1);
                 append_log("STAGE_L_PASS_TABLE_CAPACITY table=%p slotArray=%p physicalSlots=%u storedMaxKey=0x%04X requiredSlots=%u requiredMaxKey=0x%04X sufficient=1 allocatorMutation=0",
-                    g_pass_table_base,slot_array,slot_count,maximum_key,
+                    g_shadow_engine.resources.pass_table_base,slot_array,slot_count,maximum_key,
                     REQUIRED_PASS_TABLE_SLOTS,REQUIRED_PASS_MAX_KEY);
                 /* The native accessor used by the supported build has two
                  * structurally identical matches on A4EE.  Avoid guessing:
@@ -565,11 +565,11 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
                 for(i=0;i<EXTRA_LOCAL_MAPS;++i) {
                     uint32_t map=ORIGINAL_LOCAL_MAPS+i;
                     sprintf(name,"ShadowAlpha%u",map);
-                    assign(&g_extra_alpha_names[i],name);
+                    assign(&g_shadow_engine.resources.extra_alpha_names[i],name);
                     sprintf(name,"Shadow%u",map);
-                    assign(&g_extra_shadow_names[i],name);
-                    if(!g_extra_alpha_names[i] || !g_extra_shadow_names[i]) {
-                        InterlockedExchange(&g_range_pass_state,-1);
+                    assign(&g_shadow_engine.resources.extra_shadow_names[i],name);
+                    if(!g_shadow_engine.resources.extra_alpha_names[i] || !g_shadow_engine.resources.extra_shadow_names[i]) {
+                        InterlockedExchange(&g_shadow_engine.resources.range_pass_state,-1);
                         append_log("STAGE_E_PASS_REGISTER_ABORT reason=nameAssignmentReturnedNull map=%u extraRegistrationAttempted=0 failClosed=1",
                             map);
                         return;
@@ -581,36 +581,36 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
                     uint32_t pass=map+1;
                     uint32_t shadow_key=(pass<<9)|0x0CU;
                     uint32_t alpha_key=(pass<<9)|0x10CU;
-                    g_original_register_pass(registry,alpha_key,
-                        g_extra_alpha_names[i]+0x18ULL,"ShadowAlpha",5,1);
-                    g_original_register_pass(registry,shadow_key,
-                        g_extra_shadow_names[i]+0x18ULL,"Shadow",5,1);
+                    g_shadow_engine.hooks.original_register_pass(registry,alpha_key,
+                        g_shadow_engine.resources.extra_alpha_names[i]+0x18ULL,"ShadowAlpha",5,1);
+                    g_shadow_engine.hooks.original_register_pass(registry,shadow_key,
+                        g_shadow_engine.resources.extra_shadow_names[i]+0x18ULL,"Shadow",5,1);
                     append_log("STAGE_E_PASS map=%u pass=%u shadowKey=0x%04X alphaKey=0x%04X pairedCallsReturned=1 downstreamRoutingDeferred=1",
                         map,pass,shadow_key,alpha_key);
                 }
                 if(verify_added_pass_slots(registry,&added_nonzero,
                                            &added_distinct)) {
-                    InterlockedExchange(&g_pass_table_added_nonzero,
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_added_nonzero,
                                         (LONG)added_nonzero);
-                    InterlockedExchange(&g_pass_table_added_distinct,
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_added_distinct,
                                         (LONG)added_distinct);
-                    InterlockedExchange(&g_pass_table_state,2);
-                    InterlockedExchange(&g_range_pass_state,2);
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_state,2);
+                    InterlockedExchange(&g_shadow_engine.resources.range_pass_state,2);
                     append_log("STAGE_L_PASS_TABLE_RESULT table=%p slotArray=%p physicalSlots=%u storedMaxKey=0x%04X addedSlotFirst=%u addedSlotLast=%u addedNonZero=%u addedDistinct=%u directStorageVerified=1 allocatorMutation=0",
-                        g_pass_table_base,slot_array,slot_count,maximum_key,
+                        g_shadow_engine.resources.pass_table_base,slot_array,slot_count,maximum_key,
                         FIRST_EXTRA_PASS_SLOT,
                         FIRST_EXTRA_PASS_SLOT+EXTRA_PASS_SLOT_COUNT-1U,
                         added_nonzero,added_distinct);
                     append_log("STAGE_E_PASS_REGISTER_RETURN maps=16-23 passes=17-24 pairedCallsReturned=16 extraPassesRegistered=16 physicalPassTableVerified=1 downstreamRoutingDeferred=1");
                 } else {
-                    InterlockedExchange(&g_pass_table_added_nonzero,
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_added_nonzero,
                                         (LONG)added_nonzero);
-                    InterlockedExchange(&g_pass_table_added_distinct,
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_added_distinct,
                                         (LONG)added_distinct);
-                    InterlockedExchange(&g_pass_table_state,-1);
-                    InterlockedExchange(&g_range_pass_state,-1);
+                    InterlockedExchange(&g_shadow_engine.resources.pass_table_state,-1);
+                    InterlockedExchange(&g_shadow_engine.resources.range_pass_state,-1);
                     append_log("STAGE_L_PASS_TABLE_RESULT table=%p slotArray=%p physicalSlots=%u storedMaxKey=0x%04X addedSlotFirst=%u addedSlotLast=%u addedNonZero=%u addedDistinct=%u directStorageVerified=0 downstreamInstallBlocked=1 allocatorMutation=0",
-                        g_pass_table_base,slot_array,slot_count,maximum_key,
+                        g_shadow_engine.resources.pass_table_base,slot_array,slot_count,maximum_key,
                         FIRST_EXTRA_PASS_SLOT,
                         FIRST_EXTRA_PASS_SLOT+EXTRA_PASS_SLOT_COUNT-1U,
                         added_nonzero,added_distinct);
@@ -618,8 +618,8 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
             }
         }
     } else if(strcmp(category,"ShadowAlpha")==0) {
-        InterlockedIncrement(&g_shadow_alpha_hits);
-        if(key==0x210CU) InterlockedExchange(&g_last_native_alpha_seen,1);
+        InterlockedIncrement(&g_shadow_engine.resources.shadow_alpha_hits);
+        if(key==0x210CU) InterlockedExchange(&g_shadow_engine.resources.last_native_alpha_seen,1);
     }
 }
 
@@ -661,7 +661,7 @@ static int validate_downstream_sites(unsigned char *base)
                   sizeof(g_render_record_constructor_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(SOURCE_CONFIG_LOOKUP_RVA),source_config_lookup,
                   sizeof(source_config_lookup))==0 &&
-           memcmp(g_disrupt_base+g_runtime_state.owner_vector_reserve_rva,
+           memcmp(g_shadow_engine.bootstrap.disrupt_base+g_runtime_state.owner_vector_reserve_rva,
                   owner_reserve,
                   sizeof(owner_reserve))==0;
 }
@@ -700,7 +700,7 @@ static int validate_deferred_sites_after_early_queue(unsigned char *base)
                   sizeof(g_render_record_release_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(SOURCE_CONFIG_LOOKUP_RVA),source_config_lookup,
                   sizeof(source_config_lookup))==0 &&
-           memcmp(g_disrupt_base+g_runtime_state.owner_vector_reserve_rva,
+           memcmp(g_shadow_engine.bootstrap.disrupt_base+g_runtime_state.owner_vector_reserve_rva,
                   owner_reserve,
                   sizeof(owner_reserve))==0;
 }

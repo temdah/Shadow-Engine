@@ -171,7 +171,9 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
         )
     assert "static ShadowEngineContext g_shadow_engine;" in shared
     assert not re.search(r"^static\s+volatile\s+LONG\s+g_", shared, re.M)
-    checks.append("state ownership: one root context with five cohesive subsystem states")
+    assert not re.search(r"^#define\s+g_", shared, re.M)
+    assert candidate_source.count("g_shadow_engine.") >= 400
+    checks.append("state ownership: one explicit root context with five cohesive subsystem states")
 
     preflight = candidate_files["src/modules/65_runtime_preflight.inc"]
     orchestration = candidate_files[bootstrap_path]
