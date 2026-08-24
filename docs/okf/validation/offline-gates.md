@@ -6,7 +6,7 @@ tags: [shadow-engine, validation, reproducibility, rollback]
 status: draft
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T00:00:00+02:00
+  at: 2026-08-24T08:25:00+02:00
 sources:
   - id: equivalence-test
     resource: ../../../tests/validate_refactor.py
@@ -14,6 +14,9 @@ sources:
   - id: transaction-test
     resource: ../../../tests/test_patch_transaction.ps1
     title: Transaction fault-injection test
+  - id: main-artifact-workflow
+    resource: ../../../.github/workflows/build-mod.yml
+    title: Main-branch installable artifact workflow
 ---
 
 # Gate set
@@ -24,6 +27,8 @@ sources:
 * Preserve full native light passthrough and unknown-build fail-closed behavior.
 * Prove transaction restoration and allocation cleanup under injected faults.
 * Produce byte-identical binaries from two clean builds.
+* On every push to `main`, build and upload the actual installable mod ZIP and
+  its checksum without creating a tag or GitHub Release.
 
 These checks detect behavioral drift visible in source and mutation mechanics.
 They cannot establish that injected execution or rendered output is equivalent;

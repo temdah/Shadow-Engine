@@ -1,0 +1,108 @@
+name: Build installable mod
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-mod:
+    name: Build Shadow Engine ASI and ZIP
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Read version from source
+        id: version
+        shell: pwsh
+        run: |
+          $source = Get-Content -Raw -LiteralPath src/modules/00_shared_config_state.inc
+          $match = [regex]::Match($source, '(?m)^#define PATCH_VERSION "([^"]+)"')
+          if (-not $match.Success) {
+            throw 'PATCH_VERSION was not found.'
+          }
+          $version = $match.Groups[1].Value
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "SHADOW_ENGINE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Download pinned TinyCC 0.9.27
+        shell: pwsh
+        run: |
+          $url = 'https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27-win64-bin.zip'
+          $expected = '34A721949A2583FDFF725312DA092FA0F5F1F284B702E6F811C6954714FAABB2'
+          Invoke-WebRequest -Uri $url -OutFile tcc.zip
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath tcc.zip).Hash
+          if ($actual -ne $expected) {
+            throw "TinyCC archive hash mismatch: $actual"
+          }
+          Expand-Archive -LiteralPath tcc.zip -DestinationPath tools
+
+      - name: Build twice and verify reproducibility
+        shell: pwsh
+        run: |
+          ./build.ps1 -CompilerPath "$PWD/tools/tcc/tcc.exe" -VerifyReproducible
+
+      - name: Run patch transaction fault-injection test
+        shell: pwsh
+        run: |
+          ./tests/test_patch_transaction.ps1 -CompilerPath "$PWD/tools/tcc/tcc.exe"
+
+      - name: Verify required ASI exports
+        shell: pwsh
+        run: |
+          $definition = Get-Content -Raw -LiteralPath src/shadow_engine_patch.def
+          if ($definition -notmatch '(?m)^\s*Init\s+@1\s*$') {
+            throw 'Exact Init export is missing.'
+          }
+          if ($definition -notmatch '(?m)^\s*OnBeforeEngineInit\s+@2\s*$') {
+            throw 'Exact OnBeforeEngineInit export is missing.'
+          }
+
+      - name: Create installable mod ZIP
+        shell: pwsh
+        run: |
+          $stage = 'dist/package'
+          New-Item -ItemType Directory -Path "$stage/bin" -Force | Out-Null
+          Copy-Item -LiteralPath build/ShadowEnginePatch.asi -Destination "$stage/bin/ShadowEnginePatch.asi"
+          $readme = Get-Content -Raw -LiteralPath packaging/README.md
+          $readme = $readme -replace '(?m)^# Shadow Engine$', "# Shadow Engine v$env:SHADOW_ENGINE_VERSION"
+          Set-Content -LiteralPath "$stage/README.md" -Value $readme -Encoding utf8
+          $zip = "dist/ShadowEngine-v$env:SHADOW_ENGINE_VERSION.zip"
+          Compress-Archive -LiteralPath "$stage/bin", "$stage/README.md" -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash
+          "$hash *$(Split-Path -Leaf $zip)" | Set-Content -LiteralPath "$zip.sha256" -Encoding ascii
+          "MOD_ZIP_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload installable mod ZIP
+        id: upload-mod
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/ShadowEngine-v${{ env.SHADOW_ENGINE_VERSION }}.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload ZIP checksum
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/ShadowEngine-v${{ env.SHADOW_ENGINE_VERSION }}.zip.sha256
+          archive: false
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Write build summary
+        shell: pwsh
+        run: |
+          "## Shadow Engine v$env:SHADOW_ENGINE_VERSION" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "The artifact is the actual installable mod ZIP containing bin/ShadowEnginePatch.asi and README.md." | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "- ZIP SHA-256: $env:MOD_ZIP_SHA256" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          "- [Download the installable ZIP](${{ steps.upload-mod.outputs.artifact-url }})" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

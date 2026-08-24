@@ -79,3 +79,20 @@ published-pointer clearing, allocation release and successful commit:
 ```powershell
 .\tests\test_patch_transaction.ps1 -CompilerPath <path-to-tcc.exe>
 ```
+
+## Main-branch installable artifact
+
+Every push to `main` runs `.github/workflows/build-mod.yml` on a GitHub-hosted
+Windows runner. The workflow downloads the hash-pinned TinyCC 0.9.27 archive,
+builds the ASI twice, requires byte-for-byte reproducibility, runs the
+transaction fault-injection test, verifies the required exports, and packages:
+
+```text
+ShadowEngine-v<version>.zip
+├── bin/ShadowEnginePatch.asi
+└── README.md
+```
+
+The version comes directly from `PATCH_VERSION`. The installable ZIP and its
+SHA-256 file are uploaded as run artifacts for 90 days. The workflow never
+creates a Git tag, GitHub Release, or source-code release.
