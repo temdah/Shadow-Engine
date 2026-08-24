@@ -6,7 +6,7 @@ tags: [shadow-engine, status, runtime, refactor]
 status: stable
 generated:
   by: codex/gpt-5
-  at: 2026-08-24T08:44:24+02:00
+  at: 2026-08-24T09:16:36+02:00
 sources:
   - id: patch-source
     resource: ../../src/shadow_engine_patch.c
@@ -46,9 +46,16 @@ budget, but none of the five validated logs recorded a renderer face-budget
 clamp. Earlier manager admission (`B4=16`) or cached-owner retention (`A8=4`) is
 therefore the stronger current hypothesis.
 
-A diagnostic-only candidate adds aggregate admission/cache counts to the
-existing residency and F8/F9 captures without changing capacity or engine
-policy. Capture the visible-loss and recovered states before selecting a
-bounded policy experiment.
+The diagnostic capture confirmed simultaneous saturation: visible loss had 147
+candidates, 17 dynamic-or-special admissions, four cached bindings, and 21/24
+faces; recovery had 71 candidates, the same 17 dynamic-or-special admissions,
+zero cached bindings, and 20/24 faces. No renderer clamp or lifecycle failure
+occurred.
+
+v1.2.2 is the resulting experimental capacity candidate. It expands to 30
+physical maps and 31 queue entries, registers maps 16-29 through passes 17-30,
+routes external results 17-29, and sets `B4=21` for approximately 20 ordinary
+dynamic positions while retaining `A8=4`. The v1.2.1 release remains the
+accepted baseline until v1.2.2 passes runtime testing.
 
 [^refactor-notes]: Behavior-neutral refactor notes

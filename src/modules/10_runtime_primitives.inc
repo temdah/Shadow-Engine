@@ -63,7 +63,7 @@ static int begin_session_log(void)
     return 1;
 }
 
-static void append_log(const char *format,...)
+static void __attribute__((format(printf,1,2))) append_log(const char *format,...)
 {
     wchar_t path[MAX_PATH];
     char line[1024];

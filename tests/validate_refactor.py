@@ -12,7 +12,8 @@ POLICY_CONSTANTS = {
     "ORIGINAL_LOCAL_MAPS", "EXTRA_LOCAL_MAPS", "TOTAL_LOCAL_MAPS",
     "TARGET_DYNAMIC_B4", "TARGET_CACHE_A8", "OWNER_VECTOR_RESERVE_CAPACITY",
     "RENDER_QUEUE_ENTRY_BYTES", "RENDER_QUEUE_COUNT_OFFSET",
-    "RENDER_QUEUE_TAIL_OFFSET", "RENDER_QUEUE_RESULT_OFFSET",
+    "RENDER_QUEUE_LAYOUT_STRIDE", "RENDER_QUEUE_TAIL_OFFSET",
+    "RENDER_QUEUE_RESULT_OFFSET",
     "NATIVE_SLICE_RESULT_COUNT", "REQUIRED_PASS_MAX_KEY",
     "REQUIRED_PASS_TABLE_SLOTS", "FIRST_EXTRA_PASS_SLOT",
     "EXTRA_PASS_SLOT_COUNT",
@@ -27,6 +28,25 @@ EXPECTED_PROFILES = {
 }
 
 RETIRED_MODULES = {"40_render_record_repair.inc", "50_resource_lifecycle_trace.inc"}
+
+V122_CAPACITY_POLICY = {
+    "ORIGINAL_LOCAL_MAPS": "16U",
+    "EXTRA_LOCAL_MAPS": "14U",
+    "TOTAL_LOCAL_MAPS": "30U",
+    "TARGET_DYNAMIC_B4": "21U",
+    "TARGET_CACHE_A8": "4U",
+    "OWNER_VECTOR_RESERVE_CAPACITY": "8U",
+    "RENDER_QUEUE_ENTRY_BYTES": "0x24C0U",
+    "RENDER_QUEUE_LAYOUT_STRIDE": "0x24C8U",
+    "RENDER_QUEUE_COUNT_OFFSET": "0x47448U",
+    "RENDER_QUEUE_TAIL_OFFSET": "0x47450U",
+    "RENDER_QUEUE_RESULT_OFFSET": "0x47460U",
+    "NATIVE_SLICE_RESULT_COUNT": "17U",
+    "REQUIRED_PASS_MAX_KEY": "0x3D0CU",
+    "REQUIRED_PASS_TABLE_SLOTS": "62U",
+    "FIRST_EXTRA_PASS_SLOT": "34U",
+    "EXTRA_PASS_SLOT_COUNT": "28U",
+}
 
 
 def read_tree(root: pathlib.Path) -> tuple[str, dict[str, str]]:
@@ -69,7 +89,11 @@ def installed_hooks(source: str) -> set[str]:
     return set(re.findall(r"install_detour\([^;]*?\b(hooked_[A-Za-z0-9_]+)\b", source, re.S))
 
 
-def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
+def validate(
+    baseline: pathlib.Path,
+    candidate: pathlib.Path,
+    capacity_target_v122: bool,
+) -> list[str]:
     base_source, _ = read_tree(baseline)
     candidate_source, candidate_files = read_tree(candidate)
     checks: list[str] = []
@@ -77,11 +101,19 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     base_defines = definitions(base_source)
     candidate_defines = definitions(candidate_source)
     for name in sorted(POLICY_CONSTANTS):
-        assert candidate_defines.get(name) == base_defines.get(name), (
-            f"policy constant changed: {name}: "
-            f"{base_defines.get(name)!r} -> {candidate_defines.get(name)!r}"
+        expected = (
+            V122_CAPACITY_POLICY[name]
+            if capacity_target_v122
+            else base_defines.get(name)
         )
-    checks.append(f"policy constants: {len(POLICY_CONSTANTS)} unchanged")
+        assert candidate_defines.get(name) == expected, (
+            f"policy constant changed: {name}: "
+            f"expected {expected!r}, got {candidate_defines.get(name)!r}"
+        )
+    checks.append(
+        f"policy constants: {len(POLICY_CONSTANTS)} "
+        + ("match v1.2.2 capacity target" if capacity_target_v122 else "unchanged")
+    )
 
     base_rvas = {key: value for key, value in base_defines.items() if key.endswith("_RVA")}
     candidate_rvas = {key: value for key, value in candidate_defines.items() if key.endswith("_RVA")}
@@ -91,10 +123,31 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     tail_pattern = r"\{\s*0x([0-9A-Fa-f]+)ULL,\s*0x([0-9A-Fa-f]+),\s*0x([0-9A-Fa-f]+)\s*\}"
     base_tails = re.findall(tail_pattern, array_block(base_source, "g_tail_patches"))
     candidate_tails = re.findall(tail_pattern, array_block(candidate_source, "g_tail_patches"))
-    assert candidate_tails == base_tails and len(candidate_tails) == 46, (
-        f"queue-tail table changed: baseline={len(base_tails)} candidate={len(candidate_tails)}"
-    )
-    checks.append("queue-tail relocations: 46 unchanged")
+    if capacity_target_v122:
+        assert len(base_tails) == len(candidate_tails) == 46, (
+            f"queue-tail count changed: baseline={len(base_tails)} "
+            f"candidate={len(candidate_tails)}"
+        )
+        delta = (30 - 24) * 0x24C8
+        for base_tail, candidate_tail in zip(base_tails, candidate_tails):
+            base_rva, base_old, base_new = (int(value, 16) for value in base_tail)
+            candidate_rva, candidate_old, candidate_new = (
+                int(value, 16) for value in candidate_tail
+            )
+            assert candidate_rva == base_rva and candidate_old == base_old, (
+                f"queue-tail source changed at RVA 0x{base_rva:X}"
+            )
+            assert candidate_new == base_new + delta, (
+                f"queue-tail target mismatch at RVA 0x{base_rva:X}: "
+                f"expected 0x{base_new + delta:X}, got 0x{candidate_new:X}"
+            )
+        checks.append("queue-tail relocations: 46 advanced by six 0x24C8 layout strides")
+    else:
+        assert candidate_tails == base_tails and len(candidate_tails) == 46, (
+            f"queue-tail table changed: baseline={len(base_tails)} "
+            f"candidate={len(candidate_tails)}"
+        )
+        checks.append("queue-tail relocations: 46 unchanged")
 
     base_asia = hex_pairs(array_block(base_source, "g_asia_rva_map"))
     candidate_asia = hex_pairs(array_block(candidate_source, "g_asia_rva_map"))
@@ -162,6 +215,18 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     checks.append("transactions: all executable writes/allocations routed; two phased rollbacks")
 
     shared = candidate_files["src/modules/00_shared_config_state.inc"]
+    if capacity_target_v122:
+        assert '#define PATCH_VERSION "1.2.2"' in shared
+        assert "#define PHYSICAL_QUEUE_ENTRIES (TOTAL_LOCAL_MAPS+1U)" in shared
+        assert "#define QUEUE_ARRAY_CLEAR_BYTES (4U+TOTAL_LOCAL_MAPS*4U)" in shared
+        expansion = candidate_files["src/modules/60_engine_expansion.inc"]
+        assert "(unsigned char)TOTAL_LOCAL_MAPS" in expansion
+        assert "(unsigned char)TARGET_DYNAMIC_B4" in expansion
+        assert "EXTRA_SLICE_RESULT_COUNT" in candidate_source
+        checks.append(
+            "v1.2.2 capacity: 30 maps, 31 queue entries, 14 external maps, "
+            "28 pass slots, 13 external results, B4=21, A8=4"
+        )
     for state_type in (
         "BootstrapState", "HookBindings", "ManagerRendererState",
         "ResourcePassState", "ExternalResultState", "ShadowEngineContext",
@@ -196,9 +261,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", required=True, type=pathlib.Path)
     parser.add_argument("--candidate", required=True, type=pathlib.Path)
+    parser.add_argument("--capacity-target-v122", action="store_true")
     args = parser.parse_args()
     try:
-        checks = validate(args.baseline.resolve(), args.candidate.resolve())
+        checks = validate(
+            args.baseline.resolve(),
+            args.candidate.resolve(),
+            args.capacity_target_v122,
+        )
     except (AssertionError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1

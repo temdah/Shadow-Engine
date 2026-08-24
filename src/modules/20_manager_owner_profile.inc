@@ -228,8 +228,10 @@ static void __fastcall hooked_shadow_manager(void *manager,void *candidates,
         InterlockedExchange(&g_shadow_engine.renderer.observed_scheduler_b4,live_b4);
         if(live_a8==TARGET_CACHE_A8 && live_b4==TARGET_DYNAMIC_B4 &&
            InterlockedCompareExchange(&g_shadow_engine.renderer.live_a8_ready_logged,1,0)==0) {
-            append_log("STAGE_F_LIVE_MANAGER_READY call=%ld B4=%ld A8=%ld targetOrdinaryDynamicPositions=15 targetCachedOwners=4 physicalOwnerReserve=8 afterOriginalManager=1",
-                (long)call,(long)live_b4,(long)live_a8);
+            append_log("STAGE_F_LIVE_MANAGER_READY call=%ld B4=%ld A8=%ld targetOrdinaryDynamicPositions=%u targetCachedOwners=%u physicalOwnerReserve=%u afterOriginalManager=1",
+                (long)call,(long)live_b4,(long)live_a8,
+                TARGET_DYNAMIC_B4-1U,TARGET_CACHE_A8,
+                OWNER_VECTOR_RESERVE_CAPACITY);
         }
     }
 }

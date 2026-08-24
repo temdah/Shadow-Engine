@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "1.2.1-admission-probe.1"
+#define PATCH_VERSION "1.2.2"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -52,25 +52,69 @@
 #define FIELD_110_LOOKUP_RETURN_RVA 0x003DE059ULL
 #define SOURCE_CONFIG_LOOKUP_RVA 0x0030ACC9ULL
 #define FACE_OBJECT_BUILD_RVA    0x0030CB99ULL
-#define RENDER_QUEUE_COUNT_OFFSET 0x39798U
-#define RENDER_QUEUE_TAIL_OFFSET  0x397A0U
-#define RENDER_QUEUE_RESULT_OFFSET 0x397B0U
+#define RENDER_QUEUE_COUNT_OFFSET 0x47448U
+#define RENDER_QUEUE_TAIL_OFFSET  0x47450U
+#define RENDER_QUEUE_RESULT_OFFSET 0x47460U
 #define RENDER_QUEUE_ENTRY_BYTES  0x24C0U
+#define RENDER_QUEUE_LAYOUT_STRIDE 0x24C8U
+#define RENDER_QUEUE_ALLOCATION_BYTES (RENDER_QUEUE_TAIL_OFFSET+0x20U)
 #define ORIGINAL_LOCAL_MAPS 16U
-#define EXTRA_LOCAL_MAPS 8U
-#define TOTAL_LOCAL_MAPS 24U
-#define TARGET_DYNAMIC_B4 16U
+#define EXTRA_LOCAL_MAPS 14U
+#define TOTAL_LOCAL_MAPS 30U
+#define PHYSICAL_QUEUE_ENTRIES (TOTAL_LOCAL_MAPS+1U)
+#define QUEUE_ARRAY_CLEAR_BYTES (4U+TOTAL_LOCAL_MAPS*4U)
+#define TARGET_DYNAMIC_B4 21U
 #define TARGET_CACHE_A8 4U
 #define OWNER_VECTOR_RESERVE_CAPACITY 8U
 #define SHADOW_PASS_CATEGORY      0x0CU
-#define REQUIRED_PASS_MAX_KEY     0x310CU
-#define REQUIRED_PASS_TABLE_SLOTS 50U
+#define REQUIRED_PASS_MAX_KEY     0x3D0CU
+#define REQUIRED_PASS_TABLE_SLOTS 62U
 #define FIRST_EXTRA_PASS_SLOT     34U
-#define EXTRA_PASS_SLOT_COUNT     16U
+#define EXTRA_PASS_SLOT_COUNT     28U
 #define LIFECYCLE_RECORD_SLOTS      2048U
 #define EXTERNAL_SLICE_SUMMARY_PERIOD_MS 30000U
 #define NATIVE_SLICE_RESULT_COUNT 17U
 #define EXTRA_SLICE_RESULT_COUNT (TOTAL_LOCAL_MAPS-NATIVE_SLICE_RESULT_COUNT)
+
+#if TOTAL_LOCAL_MAPS != ORIGINAL_LOCAL_MAPS+EXTRA_LOCAL_MAPS
+#error local map totals are inconsistent
+#endif
+#if PHYSICAL_QUEUE_ENTRIES != TOTAL_LOCAL_MAPS+1U
+#error queue entry count must preserve the long-range entry
+#endif
+#if QUEUE_ARRAY_CLEAR_BYTES != 4U+TOTAL_LOCAL_MAPS*4U
+#error queue clear size is inconsistent with the local-map count
+#endif
+#if RENDER_QUEUE_COUNT_OFFSET != 0x27158U+EXTRA_LOCAL_MAPS*RENDER_QUEUE_LAYOUT_STRIDE
+#error queue count offset is inconsistent with the relocated layout
+#endif
+#if RENDER_QUEUE_TAIL_OFFSET != RENDER_QUEUE_COUNT_OFFSET+8U
+#error queue tail offset is inconsistent with the relocated layout
+#endif
+#if RENDER_QUEUE_RESULT_OFFSET != RENDER_QUEUE_COUNT_OFFSET+0x18U
+#error queue result offset is inconsistent with the relocated layout
+#endif
+#if RENDER_QUEUE_ALLOCATION_BYTES != RENDER_QUEUE_COUNT_OFFSET+0x28U
+#error queue allocation size is inconsistent with the relocated layout
+#endif
+#if EXTRA_PASS_SLOT_COUNT != EXTRA_LOCAL_MAPS*2U
+#error each external map requires Shadow and ShadowAlpha pass slots
+#endif
+#if REQUIRED_PASS_TABLE_SLOTS != FIRST_EXTRA_PASS_SLOT+EXTRA_PASS_SLOT_COUNT
+#error required pass-table slots are inconsistent with the external pass range
+#endif
+#if REQUIRED_PASS_MAX_KEY != ((TOTAL_LOCAL_MAPS<<9U)|0x10CU)
+#error required pass key is inconsistent with the final ShadowAlpha pass
+#endif
+#if REQUIRED_PASS_TABLE_SLOTS > 64U || REQUIRED_PASS_MAX_KEY > 0x3F00U
+#error capacity target exceeds the proven native pass registry
+#endif
+#if EXTRA_SLICE_RESULT_COUNT > 32U
+#error external result count exceeds the 32-bit lifecycle written mask
+#endif
+#if TOTAL_LOCAL_MAPS > 255U || TARGET_DYNAMIC_B4 > 255U || QUEUE_ARRAY_CLEAR_BYTES > 255U
+#error patched immediate no longer fits its encoded byte field
+#endif
 
 #define STRING_ASSIGN_RVA         0x000D60B0ULL
 #define STRING_VALUE_RVA          0x000CCEB0ULL
@@ -168,55 +212,57 @@ static const unsigned char g_render_record_constructor_prologue[14] = {
     0x45,0x33,0xC0,0x48,0x8D,0x41,0x70,0x41,0x8D,0x50,0x02,0x4C,0x89,0x01
 };
 /* The queue owns one entry per local map plus the preserved long-range pass.
- * These are the complete downstream tail-offset relocations recovered and
- * exercised by the old v1.2.16 line: 16/17 becomes 24/25. */
+ * These are the complete downstream tail-offset relocations recovered for the
+ * native 16/17 layout. Each map adds one 0x24C0-byte record and one eight-byte
+ * auxiliary slot, so the tail advances by 0x24C8 per map. v1.2.2 applies all
+ * fourteen strides, producing the coherent 30/31 layout. */
 static const TailPatch g_tail_patches[] = {
-    { 0x2C049EULL, 0x27158, 0x39798 },
-    { 0x2C04E2ULL, 0x27158, 0x39798 },
-    { 0x2CBF18ULL, 0x27168, 0x397A8 },
-    { 0x2CC150ULL, 0x27168, 0x397A8 },
-    { 0x2CC1B9ULL, 0x27168, 0x397A8 },
-    { 0x2CC1C4ULL, 0x27168, 0x397A8 },
-    { 0x2CC1D6ULL, 0x27168, 0x397A8 },
-    { 0x2CC1E8ULL, 0x27168, 0x397A8 },
-    { 0x2CC1FAULL, 0x27168, 0x397A8 },
-    { 0x2CC27FULL, 0x27168, 0x397A8 },
-    { 0x2CC291ULL, 0x27168, 0x397A8 },
-    { 0x2CC2A3ULL, 0x27168, 0x397A8 },
-    { 0x2CC2C3ULL, 0x27168, 0x397A8 },
-    { 0x2CC300ULL, 0x27170, 0x397B0 },
-    { 0x2CC31CULL, 0x27170, 0x397B0 },
-    { 0x2D608DULL, 0x27170, 0x397B0 },
-    { 0x2D60B2ULL, 0x27168, 0x397A8 },
-    { 0x2D61D1ULL, 0x27168, 0x397A8 },
-    { 0x2D6269ULL, 0x27158, 0x39798 },
-    { 0x2E225CULL, 0x27158, 0x39798 },
-    { 0x2E2262ULL, 0x27160, 0x397A0 },
-    { 0x2E2269ULL, 0x27168, 0x397A8 },
-    { 0x2E2270ULL, 0x27170, 0x397B0 },
-    { 0x2E2277ULL, 0x2715C, 0x3979C },
-    { 0x304F7FULL, 0x27168, 0x397A8 },
-    { 0x304FC3ULL, 0x27168, 0x397A8 },
-    { 0x305018ULL, 0x27168, 0x397A8 },
-    { 0x3050C8ULL, 0x2715C, 0x3979C },
-    { 0x306EAEULL, 0x27168, 0x397A8 },
-    { 0x306EB9ULL, 0x270D0, 0x396D0 },
-    { 0x306EF3ULL, 0x27114, 0x39734 },
-    { 0x306F64ULL, 0x27158, 0x39798 },
-    { 0x307285ULL, 0x270D0, 0x396D0 },
-    { 0x30728CULL, 0x27114, 0x39734 },
-    { 0x308A01ULL, 0x27158, 0x39798 },
-    { 0x30A5F8ULL, 0x27158, 0x39798 },
-    { 0x30ABC0ULL, 0x27158, 0x39798 },
-    { 0x30D1BDULL, 0x27160, 0x397A0 },
-    { 0x30D222ULL, 0x27158, 0x39798 },
-    { 0x3C6D1DULL, 0x27160, 0x397A0 },
-    { 0x3CA3E2ULL, 0x27180, 0x397C0 },
-    { 0x3CA441ULL, 0x2715C, 0x3979C },
-    { 0x3CA76FULL, 0x27160, 0x397A0 },
-    { 0x3CA77AULL, 0x27160, 0x397A0 },
-    { 0x3E072FULL, 0x27160, 0x397A0 },
-    { 0x3E07E7ULL, 0x27160, 0x397A0 }
+    { 0x2C049EULL, 0x27158, 0x47448 },
+    { 0x2C04E2ULL, 0x27158, 0x47448 },
+    { 0x2CBF18ULL, 0x27168, 0x47458 },
+    { 0x2CC150ULL, 0x27168, 0x47458 },
+    { 0x2CC1B9ULL, 0x27168, 0x47458 },
+    { 0x2CC1C4ULL, 0x27168, 0x47458 },
+    { 0x2CC1D6ULL, 0x27168, 0x47458 },
+    { 0x2CC1E8ULL, 0x27168, 0x47458 },
+    { 0x2CC1FAULL, 0x27168, 0x47458 },
+    { 0x2CC27FULL, 0x27168, 0x47458 },
+    { 0x2CC291ULL, 0x27168, 0x47458 },
+    { 0x2CC2A3ULL, 0x27168, 0x47458 },
+    { 0x2CC2C3ULL, 0x27168, 0x47458 },
+    { 0x2CC300ULL, 0x27170, 0x47460 },
+    { 0x2CC31CULL, 0x27170, 0x47460 },
+    { 0x2D608DULL, 0x27170, 0x47460 },
+    { 0x2D60B2ULL, 0x27168, 0x47458 },
+    { 0x2D61D1ULL, 0x27168, 0x47458 },
+    { 0x2D6269ULL, 0x27158, 0x47448 },
+    { 0x2E225CULL, 0x27158, 0x47448 },
+    { 0x2E2262ULL, 0x27160, 0x47450 },
+    { 0x2E2269ULL, 0x27168, 0x47458 },
+    { 0x2E2270ULL, 0x27170, 0x47460 },
+    { 0x2E2277ULL, 0x2715C, 0x4744C },
+    { 0x304F7FULL, 0x27168, 0x47458 },
+    { 0x304FC3ULL, 0x27168, 0x47458 },
+    { 0x305018ULL, 0x27168, 0x47458 },
+    { 0x3050C8ULL, 0x2715C, 0x4744C },
+    { 0x306EAEULL, 0x27168, 0x47458 },
+    { 0x306EB9ULL, 0x270D0, 0x47380 },
+    { 0x306EF3ULL, 0x27114, 0x473E4 },
+    { 0x306F64ULL, 0x27158, 0x47448 },
+    { 0x307285ULL, 0x270D0, 0x47380 },
+    { 0x30728CULL, 0x27114, 0x473E4 },
+    { 0x308A01ULL, 0x27158, 0x47448 },
+    { 0x30A5F8ULL, 0x27158, 0x47448 },
+    { 0x30ABC0ULL, 0x27158, 0x47448 },
+    { 0x30D1BDULL, 0x27160, 0x47450 },
+    { 0x30D222ULL, 0x27158, 0x47448 },
+    { 0x3C6D1DULL, 0x27160, 0x47450 },
+    { 0x3CA3E2ULL, 0x27180, 0x47470 },
+    { 0x3CA441ULL, 0x2715C, 0x4744C },
+    { 0x3CA76FULL, 0x27160, 0x47450 },
+    { 0x3CA77AULL, 0x27160, 0x47450 },
+    { 0x3E072FULL, 0x27160, 0x47450 },
+    { 0x3E07E7ULL, 0x27160, 0x47450 }
 };
 
 

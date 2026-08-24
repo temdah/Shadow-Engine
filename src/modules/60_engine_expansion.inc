@@ -72,9 +72,9 @@ static int validate_queue_layout(void)
 static int validate_queue_layout_applied(void)
 {
     size_t i;
-    static const unsigned char count[]={0xBE,0x18,0,0,0};
-    static const unsigned char clear_a[]={0x41,0xB8,0x64,0,0,0};
-    static const unsigned char clear_b[]={0x44,0x8D,0x42,0x64};
+    const unsigned char count[]={0xBE,(unsigned char)TOTAL_LOCAL_MAPS,0,0,0};
+    const unsigned char clear_a[]={0x41,0xB8,(unsigned char)QUEUE_ARRAY_CLEAR_BYTES,0,0,0};
+    const unsigned char clear_b[]={0x44,0x8D,0x42,(unsigned char)QUEUE_ARRAY_CLEAR_BYTES};
     for(i=0;i<sizeof(g_tail_patches)/sizeof(g_tail_patches[0]);++i) {
         if(embedded_dword_offset(
             ENGINE_ADDRESS(g_tail_patches[i].instruction_rva),
@@ -88,9 +88,9 @@ static int validate_queue_layout_applied(void)
 static int apply_queue_layout(void)
 {
     size_t i;
-    static const unsigned char count[]={0xBE,0x18,0,0,0};
-    static const unsigned char clear_a[]={0x41,0xB8,0x64,0,0,0};
-    static const unsigned char clear_b[]={0x44,0x8D,0x42,0x64};
+    const unsigned char count[]={0xBE,(unsigned char)TOTAL_LOCAL_MAPS,0,0,0};
+    const unsigned char clear_a[]={0x41,0xB8,(unsigned char)QUEUE_ARRAY_CLEAR_BYTES,0,0,0};
+    const unsigned char clear_b[]={0x44,0x8D,0x42,(unsigned char)QUEUE_ARRAY_CLEAR_BYTES};
     for(i=0;i<sizeof(g_tail_patches)/sizeof(g_tail_patches[0]);++i) {
         int offset=embedded_dword_offset(
             ENGINE_ADDRESS(g_tail_patches[i].instruction_rva),
@@ -144,21 +144,22 @@ static void emit_relay_jump(unsigned char *body,size_t *size,
 static int install_slice_result_bounds_relays(void)
 {
     unsigned char body[128];
+    unsigned char expected_nonnull[15]={
+        0x49,0x8B,0x8D,0,0,0,0,
+        0x48,0x8B,0x94,0x24,0xD8,0x00,0x00,0x00
+    };
+    unsigned char expected_null[15]={
+        0x49,0x8B,0x85,0,0,0,0,
+        0x48,0x8B,0x94,0x24,0xD8,0x00,0x00,0x00
+    };
     size_t n,external_branch,external_label;
     uint32_t result_offset=RENDER_QUEUE_RESULT_OFFSET;
     uint64_t external_store=(uint64_t)(uintptr_t)store_external_slice_result;
-    static const unsigned char expected_nonnull[15]={
-        0x49,0x8B,0x8D,0xB0,0x97,0x03,0x00,
-        0x48,0x8B,0x94,0x24,0xD8,0x00,0x00,0x00
-    };
-    static const unsigned char expected_null[15]={
-        0x49,0x8B,0x85,0xB0,0x97,0x03,0x00,
-        0x48,0x8B,0x94,0x24,0xD8,0x00,0x00,0x00
-    };
     unsigned char *epilogue=ENGINE_ADDRESS(SLICE_RESULT_EPILOGUE_RVA);
 
-    if(result_offset!=0x397B0U ||
-       !validate_slice_result_store_sites(result_offset)) return 0;
+    memcpy(expected_nonnull+3,&result_offset,4);
+    memcpy(expected_null+3,&result_offset,4);
+    if(!validate_slice_result_store_sites(result_offset)) return 0;
 
     n=0;
     body[n++]=0x49; body[n++]=0x8B; body[n++]=0x8D;
@@ -303,10 +304,10 @@ static int validate_v1216_scheduler(void)
 
 static int apply_v1216_scheduler(void)
 {
-    static const unsigned char scheduler_init[]={
-        0xC7,0x85,0xB4,0,0,0,0x10,0,0,0};
-    static const unsigned char scheduler_floor[]={0xBA,0x10,0,0,0};
-    static const unsigned char scheduler_upper[]={0x41,0xB8,0x10,0,0,0};
+    const unsigned char scheduler_init[]={
+        0xC7,0x85,0xB4,0,0,0,(unsigned char)TARGET_DYNAMIC_B4,0,0,0};
+    const unsigned char scheduler_floor[]={0xBA,(unsigned char)TARGET_DYNAMIC_B4,0,0,0};
+    const unsigned char scheduler_upper[]={0x41,0xB8,(unsigned char)TARGET_DYNAMIC_B4,0,0,0};
     return patch_write_bytes(ENGINE_ADDRESS(SCHEDULER_INIT_RVA),scheduler_init,
                        sizeof(scheduler_init)) &&
            patch_write_bytes(ENGINE_ADDRESS(SCHEDULER_FLOOR_RVA),scheduler_floor,
@@ -356,8 +357,8 @@ static int install_map_range_loop_extension(void)
     static const unsigned char expected_bound[9]={
         0x83,0xFF,0x10,0x0F,0x82,0xEE,0xFE,0xFF,0xFF
     };
-    static const unsigned char replacement_bound[9]={
-        0x83,0xFF,0x18,0x0F,0x82,0xEE,0xFE,0xFF,0xFF
+    const unsigned char replacement_bound[9]={
+        0x83,0xFF,(unsigned char)TOTAL_LOCAL_MAPS,0x0F,0x82,0xEE,0xFE,0xFF,0xFF
     };
 
     if(!validate_map_range_loop_extension()) return 0;
@@ -369,7 +370,7 @@ static int install_map_range_loop_extension(void)
     /* Preserve the native result load. */
     memcpy(body+n,expected_store,7); n+=7;
     /* For EDI>=16, redirect R12/R13 from overlapping manager-tail addresses
-     * into external handle[8] and aligned companion[8][16] arrays. */
+     * into the capacity-sized external handle and aligned companion arrays. */
     body[n++]=0x83; body[n++]=0xFF; body[n++]=0x10; /* cmp edi,16 */
     body[n++]=0x72; body[n++]=0x24;                 /* jb +36 */
     body[n++]=0x8B; body[n++]=0xC7;                /* mov eax,edi */
@@ -507,13 +508,19 @@ static void __fastcall hooked_resource_constructor(void *manager)
     InterlockedExchange(&g_shadow_engine.resources.range_resource_state,
         (nonzero==EXTRA_LOCAL_MAPS && distinct==EXTRA_LOCAL_MAPS) ? 2 : -1);
     if(nonzero==EXTRA_LOCAL_MAPS && distinct==EXTRA_LOCAL_MAPS) {
-        append_log("STAGE_E_HANDLE_TABLE_READY table=%p nativeEntries=16 externalEntries=8 handle16=%08X handle23=%08X downstreamRoutingDeferred=1",
-            (void *)g_shadow_engine.resources.shadow_map_ids,g_shadow_engine.resources.shadow_map_ids[16],g_shadow_engine.resources.shadow_map_ids[23]);
+        append_log("STAGE_E_HANDLE_TABLE_READY table=%p nativeEntries=%u externalEntries=%u handleFirst=%08X handleLast=%08X firstExternalMap=%u lastExternalMap=%u downstreamRoutingDeferred=1",
+            (void *)g_shadow_engine.resources.shadow_map_ids,ORIGINAL_LOCAL_MAPS,
+            EXTRA_LOCAL_MAPS,g_shadow_engine.resources.shadow_map_ids[ORIGINAL_LOCAL_MAPS],
+            g_shadow_engine.resources.shadow_map_ids[TOTAL_LOCAL_MAPS-1U],
+            ORIGINAL_LOCAL_MAPS,TOTAL_LOCAL_MAPS-1U);
     }
-    append_log("STAGE_E_RESOURCE_RESULT handles=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X nonZero=%ld distinctFromNativeAndEachOther=%ld externalCompanions=%p storedExternally=8 nativeLoopExecuted24=1 nativeManagerLayoutChanged=0 downstreamRoutingDeferred=1",
-        g_shadow_engine.resources.extra_handles[0],g_shadow_engine.resources.extra_handles[1],g_shadow_engine.resources.extra_handles[2],g_shadow_engine.resources.extra_handles[3],
-        g_shadow_engine.resources.extra_handles[4],g_shadow_engine.resources.extra_handles[5],g_shadow_engine.resources.extra_handles[6],g_shadow_engine.resources.extra_handles[7],
-        (long)nonzero,(long)distinct,(void *)&g_shadow_engine.resources.extra_companions[0][0]);
+    append_log("STAGE_E_RESOURCE_RESULT externalMaps=%u mapFirst=%u mapLast=%u handleFirst=%08X handleLast=%08X nonZero=%ld distinctFromNativeAndEachOther=%ld externalCompanions=%p nativeLoopExecutedMaps=%u nativeManagerLayoutChanged=0 downstreamRoutingDeferred=1",
+        EXTRA_LOCAL_MAPS,ORIGINAL_LOCAL_MAPS,TOTAL_LOCAL_MAPS-1U,
+        g_shadow_engine.resources.extra_handles[0],
+        g_shadow_engine.resources.extra_handles[EXTRA_LOCAL_MAPS-1U],
+        (long)nonzero,(long)distinct,
+        (void *)&g_shadow_engine.resources.extra_companions[0][0],
+        TOTAL_LOCAL_MAPS);
     for(i=0;i<EXTRA_LOCAL_MAPS;++i) {
         append_log("STAGE_E_MAP map=%u pass=%u handle=%08X nonZero=%u companion=%p downstreamRoutingDeferred=1",
             ORIGINAL_LOCAL_MAPS+i,ORIGINAL_LOCAL_MAPS+i+1,g_shadow_engine.resources.extra_handles[i],
@@ -575,7 +582,9 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
                         return;
                     }
                 }
-                append_log("STAGE_E_PASS_REGISTER_BEGIN maps=16-23 passes=17-24 insideNativeConstruction=1 downstreamRoutingDeferred=1");
+                append_log("STAGE_E_PASS_REGISTER_BEGIN maps=%u-%u passes=%u-%u insideNativeConstruction=1 downstreamRoutingDeferred=1",
+                    ORIGINAL_LOCAL_MAPS,TOTAL_LOCAL_MAPS-1U,
+                    ORIGINAL_LOCAL_MAPS+1U,TOTAL_LOCAL_MAPS);
                 for(i=0;i<EXTRA_LOCAL_MAPS;++i) {
                     uint32_t map=ORIGINAL_LOCAL_MAPS+i;
                     uint32_t pass=map+1;
@@ -601,7 +610,10 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
                         FIRST_EXTRA_PASS_SLOT,
                         FIRST_EXTRA_PASS_SLOT+EXTRA_PASS_SLOT_COUNT-1U,
                         added_nonzero,added_distinct);
-                    append_log("STAGE_E_PASS_REGISTER_RETURN maps=16-23 passes=17-24 pairedCallsReturned=16 extraPassesRegistered=16 physicalPassTableVerified=1 downstreamRoutingDeferred=1");
+                    append_log("STAGE_E_PASS_REGISTER_RETURN maps=%u-%u passes=%u-%u pairedCallsReturned=%u extraPassesRegistered=%u physicalPassTableVerified=1 downstreamRoutingDeferred=1",
+                        ORIGINAL_LOCAL_MAPS,TOTAL_LOCAL_MAPS-1U,
+                        ORIGINAL_LOCAL_MAPS+1U,TOTAL_LOCAL_MAPS,
+                        EXTRA_PASS_SLOT_COUNT,EXTRA_PASS_SLOT_COUNT);
                 } else {
                     InterlockedExchange(&g_shadow_engine.resources.pass_table_added_nonzero,
                                         (LONG)added_nonzero);

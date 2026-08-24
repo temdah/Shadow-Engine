@@ -79,7 +79,8 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
         failed_step="early_queue_layout";
         goto rollback_early;
     }
-    append_log("STAGE_E_EARLY_QUEUE_LAYOUT_APPLIED beforeQueueConstruction=1 physicalQueueEntries=25 allocationBytes=0x397C0 relocatedTailReferences=%u tailInitializedByNativeConstructor=1",
+    append_log("STAGE_E_EARLY_QUEUE_LAYOUT_APPLIED beforeQueueConstruction=1 physicalQueueEntries=%u allocationBytes=0x%X relocatedTailReferences=%u tailInitializedByNativeConstructor=1",
+        PHYSICAL_QUEUE_ENTRIES,RENDER_QUEUE_ALLOCATION_BYTES,
         (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])));
     if(!install_map_range_loop_extension()) {
         failed_step="native_map_loop_extension";
@@ -110,8 +111,10 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
         goto rollback_early;
     }
     InterlockedExchange(&g_shadow_engine.bootstrap.hooks_installed,1);
-    append_log("STAGE_M_EARLY_HOOKS_INSTALLED nativeLoopMaps=24 nativeManagerMaps=16 externalMaps=8 pairedExtraPasses=16 passTableAllocatorHook=0 readOnlyPassTableVerification=1 requiredPassSlots=50 earlyQueueLayout=25 renderRecordConstructorExternalState=1 diagnostics=minimal downstreamHandleRouting=0 downstreamPassRouting=0 schedulerChanged=0 managerHook=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
-        (unsigned)transaction.write_count,
+    append_log("STAGE_M_EARLY_HOOKS_INSTALLED nativeLoopMaps=%u nativeManagerMaps=%u externalMaps=%u pairedExtraPasses=%u passTableAllocatorHook=0 readOnlyPassTableVerification=1 requiredPassSlots=%u earlyQueueLayout=%u renderRecordConstructorExternalState=1 diagnostics=minimal downstreamHandleRouting=0 downstreamPassRouting=0 schedulerChanged=0 managerHook=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
+        TOTAL_LOCAL_MAPS,ORIGINAL_LOCAL_MAPS,EXTRA_LOCAL_MAPS,
+        EXTRA_PASS_SLOT_COUNT,REQUIRED_PASS_TABLE_SLOTS,
+        PHYSICAL_QUEUE_ENTRIES,(unsigned)transaction.write_count,
         (unsigned)transaction.allocation_count);
     return 1;
 
@@ -234,10 +237,13 @@ static int install_deferred_downstream(void)
     InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,2);
     InterlockedExchange(&g_shadow_engine.resources.routing_state,2);
     InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,2);
-    append_log("STAGE_M_DOWNSTREAM_INSTALLED afterConstructors=1 stabilizationMs=%u physicalQueueEntries=25 queueLayoutAppliedBeforeConstruction=1 physicalFaceBudget=24 wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 relocatedTailReferences=%u handleConsumers=3 passIndexConsumers=2 sliceResultBoundsRelays=2 nativeSliceResults=%u externalSliceResults=7 routedSliceIndices=17-23 externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B schedulerInit=16 schedulerFloor=16 schedulerUpper=16 schedulerUpperRva=0x2E9C3B cacheOwnerCeiling=4 ownerVectorPhysicalReserve=8 ownerRecordStride=0x700 reserveRva=0x319160 rendererCapacityProbe=1 queueTailIntegrityProbe=1 nullFaceCostGuard=1 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 renderRecordLifecycleHooks=constructor,builder,postCallObjectRenderers,release lifecycleRecordSlots=%u manualQueueCapture=%u blackKey=F8 recoveredKey=F9 repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal firstManagerProfileCallback=1 fullCandidatePassthrough=1 filtering=0 limiter=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
-        DOWNSTREAM_STABILIZE_MS,
+    append_log("STAGE_M_DOWNSTREAM_INSTALLED afterConstructors=1 stabilizationMs=%u physicalQueueEntries=%u queueLayoutAppliedBeforeConstruction=1 physicalFaceBudget=%u wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 relocatedTailReferences=%u handleConsumers=3 passIndexConsumers=2 sliceResultBoundsRelays=2 nativeSliceResults=%u externalSliceResults=%u routedSliceIndices=%u-%u externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B schedulerInit=%u schedulerFloor=%u schedulerUpper=%u schedulerUpperRva=0x2E9C3B cacheOwnerCeiling=%u ownerVectorPhysicalReserve=%u ownerRecordStride=0x700 reserveRva=0x319160 rendererCapacityProbe=1 queueTailIntegrityProbe=1 nullFaceCostGuard=1 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 renderRecordLifecycleHooks=constructor,builder,postCallObjectRenderers,release lifecycleRecordSlots=%u manualQueueCapture=%u blackKey=F8 recoveredKey=F9 repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal firstManagerProfileCallback=1 fullCandidatePassthrough=1 filtering=0 limiter=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
+        DOWNSTREAM_STABILIZE_MS,PHYSICAL_QUEUE_ENTRIES,TOTAL_LOCAL_MAPS,
         (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])),
-        NATIVE_SLICE_RESULT_COUNT,
+        NATIVE_SLICE_RESULT_COUNT,EXTRA_SLICE_RESULT_COUNT,
+        NATIVE_SLICE_RESULT_COUNT,TOTAL_LOCAL_MAPS-1U,
+        TARGET_DYNAMIC_B4,TARGET_DYNAMIC_B4,TARGET_DYNAMIC_B4,
+        TARGET_CACHE_A8,OWNER_VECTOR_RESERVE_CAPACITY,
         LIFECYCLE_RECORD_SLOTS,
         g_shadow_engine.hooks.get_async_key_state ? 1U : 0U,
         (unsigned)transaction.write_count,

@@ -2,6 +2,8 @@
 
 ## 2026-08-24
 
+* **v1.2.2 candidate**: Added a measured 30-map/31-entry physical layout with `B4=21`, `A8=4`, passes 17-30, external results 17-29, admission diagnostics, compile-time coupling checks, and a capacity-specific offline validator.
+* **Pressure result**: F8/F9 proved 17 dynamic-or-special plus four cached bindings during loss, zero cached bindings after recovery, 21/24 versus 20/24 faces, and no renderer clamp or lifecycle failure.
 * **Pressure diagnostics**: Distinguished upstream manager admission/cache pressure from renderer face-budget pressure and added aggregate F8/F9 measurements without changing engine policy.
 * **CI artifact**: Added a main-push GitHub Actions workflow that reproducibly builds the ASI and uploads the actual installable mod ZIP plus checksum without creating tags or GitHub Releases.
 * **Release**: Promoted the validated architecture refactor to v1.2.1; only the embedded version identity and resulting PE checksum differ from the five-profile-tested ASI.

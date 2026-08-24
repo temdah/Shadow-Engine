@@ -9,23 +9,25 @@ without displacing visible world shadows as aggressively.
 
 ## What it changes
 
-- Constructs 24 physical local shadow maps instead of the native 16.
-- Registers eight additional paired shadow and alpha render-pass groups.
-- Expands the physical render queue from 17 to 25 entries.
+- Constructs 30 physical local shadow maps instead of the native 16.
+- Registers fourteen additional paired shadow and alpha render-pass groups.
+- Expands the physical render queue from 17 to 31 entries.
 - Pre-reserves storage for eight native shadow-owner records.
 - Routes added SliceExecute results through external storage with balanced
   native release handling.
 - Preserves the complete native light candidate chain without broad spotlight
   or vehicle filtering.
-- Admits complete multi-face lights within the 24-face physical boundary.
+- Targets 20 ordinary high-quality dynamic positions with a 30-face physical
+  boundary and whole-record overflow protection.
 - Fails closed on unknown or partially matching game builds and produces a
   diagnostic log instead of installing unverified hooks.
 
 Shadow Engine increases capacity and stability. It does not increase shadow
 distance, add headlights, replace weather, or guarantee unlimited shadows.
 
-Version 1.2.1 supports the five verified Global, Shev, VMPless, Asia/Miru and
-Complete Edition runtime layouts in one ASI.
+Version 1.2.2 retains the five Global, Shev, VMPless, Asia/Miru and Complete
+Edition runtime layouts in one ASI. Its new 30-map capacity policy is an
+experimental candidate until it completes runtime validation.
 
 ## Requirements
 
@@ -53,8 +55,8 @@ Replacing only `dinput8.dll` is not a complete NexusTools installation.
 6. Launch the game normally.
 
 On a successful start, Shadow Engine creates
-`Watch_Dogs\bin\ShadowEnginePatch.log`. For v1.2.1, the log should identify
-`version=1.2.1` and contain `STAGE_M_COMPLETE`.
+`Watch_Dogs\bin\ShadowEnginePatch.log`. For v1.2.2, the log should identify
+`version=1.2.2` and contain `STAGE_M_COMPLETE`.
 
 In WATCH_DOGS Mod Manager, place Windy City Addons below The Fall of Windy
 City II in priority so the Addons combined DynamicLightPrefab database wins the

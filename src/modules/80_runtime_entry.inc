@@ -2,13 +2,13 @@
  * exported initialization entry points, fallback worker, and DllMain. */
 static void log_handle_snapshot(void)
 {
-    append_log("RESOURCE_CONSTRUCTOR_HIT count=%ld manager=%p nativeNonZero=%ld nativeDistinct=%ld handles=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X extraCreation=8 externalNonZero=%ld externalDistinct=%ld",
+    append_log("RESOURCE_CONSTRUCTOR_HIT count=%ld manager=%p nativeNonZero=%ld nativeDistinct=%ld handles=%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X,%08X extraCreation=%u externalNonZero=%ld externalDistinct=%ld",
         (long)g_shadow_engine.resources.resource_hits,g_shadow_engine.resources.last_resource_manager,
         (long)g_shadow_engine.resources.native_nonzero_handles,(long)g_shadow_engine.resources.native_distinct_handles,
         g_shadow_engine.resources.native_handles[0],g_shadow_engine.resources.native_handles[1],g_shadow_engine.resources.native_handles[2],g_shadow_engine.resources.native_handles[3],
         g_shadow_engine.resources.native_handles[4],g_shadow_engine.resources.native_handles[5],g_shadow_engine.resources.native_handles[6],g_shadow_engine.resources.native_handles[7],
         g_shadow_engine.resources.native_handles[8],g_shadow_engine.resources.native_handles[9],g_shadow_engine.resources.native_handles[10],g_shadow_engine.resources.native_handles[11],
-        g_shadow_engine.resources.native_handles[12],g_shadow_engine.resources.native_handles[13],g_shadow_engine.resources.native_handles[14],g_shadow_engine.resources.native_handles[15],
+        g_shadow_engine.resources.native_handles[12],g_shadow_engine.resources.native_handles[13],g_shadow_engine.resources.native_handles[14],g_shadow_engine.resources.native_handles[15],EXTRA_LOCAL_MAPS,
         (long)g_shadow_engine.resources.range_nonzero_handles,(long)g_shadow_engine.resources.range_distinct_handles);
 }
 
@@ -62,8 +62,16 @@ static DWORD WINAPI stage_e_worker(void *unused)
                     g_shadow_engine.bootstrap.snapshot.troplo ? 1U:0U);
                 append_log("SESSION_ROLE_CONFIRMED runGameIntercepted=1 originalRunGame=%p nexusReady=0 helperWritesSuppressed=1 logMode=create-always",
                     current_original);
-                append_log("DESIGN role=engine-only stage=Z-post-fix-performance-control earlyNativeMaps=24 earlyPasses17to24=1 passTableAllocatorHook=0 passTableVerification=readOnly requiredPassMaxKey=0x310C requiredPassSlots=50 directAddedSlotVerification=1 failClosedBeforeExtraPassRegistration=1 queueAllocationAndTailRelocationsBeforeConstruction=1 remainingDownstreamRoutingDeferredUntilAfterConstructors=1 stabilizationMs=%u schedulerInitThen=16 schedulerFloorThen=16 schedulerUpperThen=16 schedulerUpperRva=0x2E9C3B cacheOwnerCeilingA8=4 ownerVectorPhysicalReserve=8 ownerRecordStride=0x700 reserveRva=0x319160 failClosedOnReserveMismatch=1 physicalFaceBudget=24 wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 targetOrdinaryDynamicPositions=15 rendererProbeActive=1 queueTailIntegrityProbe=1 nativeSliceResultCount=17 externalSliceResultCount=7 sliceResultBoundsRelays=2 routedSliceIndices=17-23 externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B rejectedIndexedWriterDetourRemoved=1 nullFaceCostGuard=1 resourceProducerWrapperRva=0x427860 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 renderRecordLifecycleHooks=constructor,builder,postCallObjectRenderers,release lifecycleRecordSlots=%u repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal stageYSummaryPeriodMs=%u manualQueueAndStageYCapture=F8,F9 fieldMutation=externalSliceResultRouting fullCandidatePassthrough=1 filtering=0 vehicleLimiter=0",
-                    DOWNSTREAM_STABILIZE_MS,LIFECYCLE_RECORD_SLOTS,
+                append_log("DESIGN role=engine-only stage=Z-capacity-30 earlyNativeMaps=%u earlyPasses=%u-%u passTableAllocatorHook=0 passTableVerification=readOnly requiredPassMaxKey=0x%04X requiredPassSlots=%u directAddedSlotVerification=1 failClosedBeforeExtraPassRegistration=1 physicalQueueEntries=%u queueAllocationBytes=0x%X queueAllocationAndTailRelocationsBeforeConstruction=1 stabilizationMs=%u schedulerInitThen=%u schedulerFloorThen=%u schedulerUpperThen=%u schedulerUpperRva=0x2E9C3B cacheOwnerCeilingA8=%u ownerVectorPhysicalReserve=%u failClosedOnReserveMismatch=1 physicalFaceBudget=%u wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 targetOrdinaryDynamicPositions=%u rendererProbeActive=1 queueTailIntegrityProbe=1 nativeSliceResultCount=%u externalSliceResultCount=%u routedSliceIndices=%u-%u externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease lifecycleRecordSlots=%u diagnostics=admissionPressure,F8,F9 stageYSummaryPeriodMs=%u fullCandidatePassthrough=1 filtering=0 vehicleLimiter=0",
+                    TOTAL_LOCAL_MAPS,ORIGINAL_LOCAL_MAPS+1U,TOTAL_LOCAL_MAPS,
+                    REQUIRED_PASS_MAX_KEY,REQUIRED_PASS_TABLE_SLOTS,
+                    PHYSICAL_QUEUE_ENTRIES,RENDER_QUEUE_ALLOCATION_BYTES,
+                    DOWNSTREAM_STABILIZE_MS,TARGET_DYNAMIC_B4,
+                    TARGET_DYNAMIC_B4,TARGET_DYNAMIC_B4,TARGET_CACHE_A8,
+                    OWNER_VECTOR_RESERVE_CAPACITY,TOTAL_LOCAL_MAPS,
+                    TARGET_DYNAMIC_B4-1U,NATIVE_SLICE_RESULT_COUNT,
+                    EXTRA_SLICE_RESULT_COUNT,NATIVE_SLICE_RESULT_COUNT,
+                    TOTAL_LOCAL_MAPS-1U,LIFECYCLE_RECORD_SLOTS,
                     EXTERNAL_SLICE_SUMMARY_PERIOD_MS);
                 append_log("TROPLO_BIND module=%p error=%lu boundMs=%.3f",
                     g_shadow_engine.bootstrap.snapshot.troplo,(unsigned long)g_shadow_engine.bootstrap.snapshot.troplo_error,
@@ -108,7 +116,8 @@ static DWORD WINAPI stage_e_worker(void *unused)
             append_log("REGISTER_PASS_ACTIVITY nativeHookCalls=%ld nativeShadow=%ld nativeShadowAlpha=%ld nativeLastShadow=%ld nativeLastAlpha=%ld stageCPassState=%ld extraRegisteredByPatch=%u",
                 (long)current_register,(long)g_shadow_engine.resources.shadow_hits,(long)g_shadow_engine.resources.shadow_alpha_hits,
                 (long)g_shadow_engine.resources.last_native_shadow_seen,(long)g_shadow_engine.resources.last_native_alpha_seen,
-                (long)g_shadow_engine.resources.range_pass_state,g_shadow_engine.resources.range_pass_state==2 ? 16U : 0U);
+                (long)g_shadow_engine.resources.range_pass_state,
+                g_shadow_engine.resources.range_pass_state==2 ? EXTRA_PASS_SLOT_COUNT : 0U);
             last_register=current_register;
         }
         if(!constructors_ready_elapsed && g_shadow_engine.resources.range_resource_state==2 &&
@@ -128,8 +137,10 @@ static DWORD WINAPI stage_e_worker(void *unused)
            g_shadow_engine.resources.pass_table_stored_max_key>=(LONG)REQUIRED_PASS_MAX_KEY &&
            g_shadow_engine.resources.pass_table_added_nonzero==(LONG)EXTRA_PASS_SLOT_COUNT &&
            g_shadow_engine.resources.pass_table_added_distinct==(LONG)EXTRA_PASS_SLOT_COUNT &&
-           g_shadow_engine.resources.range_resource_state==2 && g_shadow_engine.resources.range_nonzero_handles==8 &&
-           g_shadow_engine.resources.range_distinct_handles==8 && g_shadow_engine.resources.range_pass_state==2 &&
+           g_shadow_engine.resources.range_resource_state==2 &&
+           g_shadow_engine.resources.range_nonzero_handles==(LONG)EXTRA_LOCAL_MAPS &&
+           g_shadow_engine.resources.range_distinct_handles==(LONG)EXTRA_LOCAL_MAPS &&
+           g_shadow_engine.resources.range_pass_state==2 &&
            g_shadow_engine.resources.routing_state==2 && g_shadow_engine.bootstrap.downstream_state==2 && g_shadow_engine.renderer.profile_state==2 &&
            g_shadow_engine.external_results.lifecycle_hooks_state==2 &&
            g_shadow_engine.renderer.renderer_hook_state==2 && g_shadow_engine.renderer.observed_scheduler_b4==TARGET_DYNAMIC_B4 &&
@@ -137,16 +148,20 @@ static DWORD WINAPI stage_e_worker(void *unused)
            g_shadow_engine.renderer.owner_capacity_after>=(LONG)OWNER_VECTOR_RESERVE_CAPACITY &&
            g_shadow_engine.renderer.owner_reserve_fail_closed==0 &&
            g_shadow_engine.renderer.owner_base_changed_during_manager==0) {
-            append_log("STAGE_M_COMPLETE resourceConstructorReached=1 passConstructorReached=1 passTableAllocatorHook=0 passTableStoredMaxKey=0x%04lX physicalPassSlots=%ld requiredPassSlots=%u addedPassSlotsNonZero=%ld addedPassSlotsDistinct=%ld directPassStorageVerified=1 extraMaps16to23NonZero=8 pairedPasses17to24RegistrationReturned=16 downstreamInstalledAfterConstructors=1 stabilizationMs=%u physicalQueueEntries=25 physicalFaceBudget=24 wholeRecordPriorityPrefix=1 observedB4=%ld observedA8=%ld ownerReserveState=%ld ownerCapacityBefore=%ld ownerCapacityAfter=%ld ownerReserveFailClosed=%ld ownerBaseChangesDuringManager=%ld targetOrdinaryDynamicPositions=15 targetCachedOwners=4 ownerPhysicalReserve=8 rendererProbeActive=1 queueTailIntegrityProbe=1 tailInvalidBeforeRenderer=%ld tailInvalidAfterRenderer=%ld extraFaceUseSeen=%ld faceBudgetClamps=%ld faceBudgetDroppedEntries=%ld faceBudgetPeakRequested=%ld nullFaceCostSkips=%ld lifecycleConstructorCalls=%ld lifecycleBuilderCalls=%ld postCallConsumerCalls=%ld lifecycleReleaseCalls=%ld externalResultRouting=1 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal fullCandidatePassthrough=1 filtering=0 limiter=0",
+            append_log("STAGE_M_COMPLETE resourceConstructorReached=1 passConstructorReached=1 passTableAllocatorHook=0 passTableStoredMaxKey=0x%04lX physicalPassSlots=%ld requiredPassSlots=%u addedPassSlotsNonZero=%ld addedPassSlotsDistinct=%ld directPassStorageVerified=1 extraMapFirst=%u extraMapLast=%u extraMapsNonZero=%u pairedPassFirst=%u pairedPassLast=%u pairedPassCallsReturned=%u downstreamInstalledAfterConstructors=1 stabilizationMs=%u physicalQueueEntries=%u physicalFaceBudget=%u wholeRecordPriorityPrefix=1 observedB4=%ld observedA8=%ld ownerReserveState=%ld ownerCapacityBefore=%ld ownerCapacityAfter=%ld ownerReserveFailClosed=%ld ownerBaseChangesDuringManager=%ld targetOrdinaryDynamicPositions=%u targetCachedOwners=%u ownerPhysicalReserve=%u rendererProbeActive=1 queueTailIntegrityProbe=1 tailInvalidBeforeRenderer=%ld tailInvalidAfterRenderer=%ld extraFaceUseSeen=%ld faceBudgetClamps=%ld faceBudgetDroppedEntries=%ld faceBudgetPeakRequested=%ld nullFaceCostSkips=%ld lifecycleConstructorCalls=%ld lifecycleBuilderCalls=%ld postCallConsumerCalls=%ld lifecycleReleaseCalls=%ld externalResultRouting=1 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=admissionPressure,F8,F9 fullCandidatePassthrough=1 filtering=0 limiter=0",
                 (long)g_shadow_engine.resources.pass_table_stored_max_key,(long)g_shadow_engine.resources.pass_table_slots,
                 REQUIRED_PASS_TABLE_SLOTS,
                 (long)g_shadow_engine.resources.pass_table_added_nonzero,
                 (long)g_shadow_engine.resources.pass_table_added_distinct,
-                DOWNSTREAM_STABILIZE_MS,
+                ORIGINAL_LOCAL_MAPS,TOTAL_LOCAL_MAPS-1U,EXTRA_LOCAL_MAPS,
+                ORIGINAL_LOCAL_MAPS+1U,TOTAL_LOCAL_MAPS,EXTRA_PASS_SLOT_COUNT,
+                DOWNSTREAM_STABILIZE_MS,PHYSICAL_QUEUE_ENTRIES,TOTAL_LOCAL_MAPS,
                 (long)g_shadow_engine.renderer.observed_scheduler_b4,(long)g_shadow_engine.renderer.observed_cache_a8,
                 (long)g_shadow_engine.renderer.owner_reserve_state,(long)g_shadow_engine.renderer.owner_capacity_before,
                 (long)g_shadow_engine.renderer.owner_capacity_after,(long)g_shadow_engine.renderer.owner_reserve_fail_closed,
                 (long)g_shadow_engine.renderer.owner_base_changed_during_manager,
+                TARGET_DYNAMIC_B4-1U,TARGET_CACHE_A8,
+                OWNER_VECTOR_RESERVE_CAPACITY,
                 (long)g_shadow_engine.renderer.tail_invalid_before_renderer,
                 (long)g_shadow_engine.renderer.tail_invalid_after_renderer,
                 (long)g_shadow_engine.renderer.extra_face_use_seen,(long)g_shadow_engine.renderer.face_budget_clamps,
