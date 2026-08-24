@@ -25,9 +25,11 @@ without displacing visible world shadows as aggressively.
 Shadow Engine increases capacity and stability. It does not increase shadow
 distance, add headlights, replace weather, or guarantee unlimited shadows.
 
-Version 1.2.2 retains the five Global, Shev, VMPless, Asia/Miru and Complete
-Edition runtime layouts in one ASI. Its new 30-map capacity policy is an
-experimental candidate until it completes runtime validation.
+Version 1.2.3 retains the five Global, Shev, VMPless, Asia/Miru and Complete
+Edition runtime layouts in one ASI. Its corrected 30-map capacity policy is an
+experimental candidate until it completes runtime validation. v1.2.2 is
+rejected because two internal mapping arrays were relocated with the wrong
+per-map stride, preventing shadow jobs from dispatching.
 
 ## Requirements
 
@@ -55,8 +57,8 @@ Replacing only `dinput8.dll` is not a complete NexusTools installation.
 6. Launch the game normally.
 
 On a successful start, Shadow Engine creates
-`Watch_Dogs\bin\ShadowEnginePatch.log`. For v1.2.2, the log should identify
-`version=1.2.2` and contain `STAGE_M_COMPLETE`.
+`Watch_Dogs\bin\ShadowEnginePatch.log`. For v1.2.3, the log should identify
+`version=1.2.3` and contain `STAGE_M_COMPLETE`.
 
 In WATCH_DOGS Mod Manager, place Windy City Addons below The Fall of Windy
 City II in priority so the Addons combined DynamicLightPrefab database wins the

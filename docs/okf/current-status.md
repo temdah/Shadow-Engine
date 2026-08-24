@@ -52,10 +52,17 @@ faces; recovery had 71 candidates, the same 17 dynamic-or-special admissions,
 zero cached bindings, and 20/24 faces. No renderer clamp or lifecycle failure
 occurred.
 
-v1.2.2 is the resulting experimental capacity candidate. It expands to 30
+v1.2.2 attempted the resulting 30-map expansion but is rejected. Its first
+runtime test loaded with every shadow missing and produced zero native or
+external `SliceExecute` results. The queue itself contained valid records and
+face pointers. Review against the historical OKF layout contract found that
+the two mapping arrays had been advanced uniformly by `0x24C8` per map instead
+of their distinct `0x24C0` and `0x24C4` strides.
+
+v1.2.3 corrects those mapping offsets while retaining the intended capacity. It expands to 30
 physical maps and 31 queue entries, registers maps 16-29 through passes 17-30,
 routes external results 17-29, and sets `B4=21` for approximately 20 ordinary
 dynamic positions while retaining `A8=4`. The v1.2.1 release remains the
-accepted baseline until v1.2.2 passes runtime testing.
+accepted baseline until v1.2.3 passes runtime testing.
 
 [^refactor-notes]: Behavior-neutral refactor notes

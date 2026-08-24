@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.3 (experimental)
+
+### Fixed
+
+- Corrected the 30-map queue layout so the record region, first mapping array,
+  and post-mapping fields grow by their actual `0x24C0`, `0x24C4`, and
+  `0x24C8` per-map strides.
+- Fixed v1.2.2 relocating the two renderer mapping arrays 48 and 24 bytes too
+  far, which left queue records populated but prevented all shadow jobs from
+  dispatching.
+
+### Validation
+
+- Added compile-time mapping-offset invariants and an exact three-stride check
+  across all 46 relocated references.
+- Produced byte-identical warning-clean TinyCC builds and passed transaction
+  fault injection. Runtime validation remains pending.
+
+## 1.2.2 (rejected)
+
+- Attempted the 30-map/31-entry and `B4=21` capacity expansion.
+- Rejected after the first runtime test loaded with every shadow missing and
+  recorded zero native or external `SliceExecute` results.
+
 ## 1.2.1
 
 ### Changed

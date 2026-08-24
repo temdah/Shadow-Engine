@@ -22,11 +22,12 @@ sources:
 # Gate set
 
 * In equivalence mode, preserve the release policy constants.
-* In `--capacity-target-v122` mode, require exactly 30 maps, 31 queue entries,
+* In `--capacity-target-v123` mode, require exactly 30 maps, 31 queue entries,
   `B4=21`, `A8=4`, 28 external pass slots, and 13 external results.
 * Preserve all active signatures and the complete Asia explicit map.
-* Preserve all 46 tail source references; capacity mode requires each target to
-  advance by six complete `0x24C8` layout strides.
+* Preserve all 46 relocation source references; capacity mode requires each
+  target to follow its owning region's `0x24C0`, `0x24C4`, or `0x24C8`
+  per-map stride. Never apply one uniform stride across all three regions.
 * Preserve external-result release fallback and enforce the 32-bit written-mask
   bound.
 * Preserve full native light passthrough and unknown-build fail-closed behavior.

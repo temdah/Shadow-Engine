@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PATCH_VERSION "1.2.2"
+#define PATCH_VERSION "1.2.3"
 #define DOWNSTREAM_STABILIZE_MS 1000U
 #define POLL_INTERVAL_MS 10U
 #define POLL_TIMEOUT_MS 60000U
@@ -56,6 +56,9 @@
 #define RENDER_QUEUE_TAIL_OFFSET  0x47450U
 #define RENDER_QUEUE_RESULT_OFFSET 0x47460U
 #define RENDER_QUEUE_ENTRY_BYTES  0x24C0U
+#define RENDER_QUEUE_FIRST_MAP_OFFSET 0x47350U
+#define RENDER_QUEUE_SECOND_MAP_OFFSET 0x473CCU
+#define RENDER_QUEUE_FIRST_MAP_STRIDE 0x24C4U
 #define RENDER_QUEUE_LAYOUT_STRIDE 0x24C8U
 #define RENDER_QUEUE_ALLOCATION_BYTES (RENDER_QUEUE_TAIL_OFFSET+0x20U)
 #define ORIGINAL_LOCAL_MAPS 16U
@@ -84,6 +87,16 @@
 #endif
 #if QUEUE_ARRAY_CLEAR_BYTES != 4U+TOTAL_LOCAL_MAPS*4U
 #error queue clear size is inconsistent with the local-map count
+#endif
+#if RENDER_QUEUE_FIRST_MAP_STRIDE != RENDER_QUEUE_ENTRY_BYTES+4U || \
+    RENDER_QUEUE_LAYOUT_STRIDE != RENDER_QUEUE_ENTRY_BYTES+8U
+#error queue mapping strides are inconsistent with the record size
+#endif
+#if RENDER_QUEUE_FIRST_MAP_OFFSET != 0x270D0U+EXTRA_LOCAL_MAPS*RENDER_QUEUE_ENTRY_BYTES
+#error first queue mapping offset is inconsistent with the record array
+#endif
+#if RENDER_QUEUE_SECOND_MAP_OFFSET != 0x27114U+EXTRA_LOCAL_MAPS*RENDER_QUEUE_FIRST_MAP_STRIDE
+#error second queue mapping offset is inconsistent with the first mapping array
 #endif
 #if RENDER_QUEUE_COUNT_OFFSET != 0x27158U+EXTRA_LOCAL_MAPS*RENDER_QUEUE_LAYOUT_STRIDE
 #error queue count offset is inconsistent with the relocated layout
@@ -214,8 +227,10 @@ static const unsigned char g_render_record_constructor_prologue[14] = {
 /* The queue owns one entry per local map plus the preserved long-range pass.
  * These are the complete downstream tail-offset relocations recovered for the
  * native 16/17 layout. Each map adds one 0x24C0-byte record and one eight-byte
- * auxiliary slot, so the tail advances by 0x24C8 per map. v1.2.2 applies all
- * fourteen strides, producing the coherent 30/31 layout. */
+ * auxiliary mapping arrays grow at separate boundaries: record-only fields use
+ * 0x24C0 per map, the first mapping array adds four bytes per map, and fields
+ * after the second mapping array add eight bytes per map. v1.2.3 preserves
+ * those three distinct layout strides for a coherent 30/31 layout. */
 static const TailPatch g_tail_patches[] = {
     { 0x2C049EULL, 0x27158, 0x47448 },
     { 0x2C04E2ULL, 0x27158, 0x47448 },
@@ -246,11 +261,11 @@ static const TailPatch g_tail_patches[] = {
     { 0x305018ULL, 0x27168, 0x47458 },
     { 0x3050C8ULL, 0x2715C, 0x4744C },
     { 0x306EAEULL, 0x27168, 0x47458 },
-    { 0x306EB9ULL, 0x270D0, 0x47380 },
-    { 0x306EF3ULL, 0x27114, 0x473E4 },
+    { 0x306EB9ULL, 0x270D0, 0x47350 },
+    { 0x306EF3ULL, 0x27114, 0x473CC },
     { 0x306F64ULL, 0x27158, 0x47448 },
-    { 0x307285ULL, 0x270D0, 0x47380 },
-    { 0x30728CULL, 0x27114, 0x473E4 },
+    { 0x307285ULL, 0x270D0, 0x47350 },
+    { 0x30728CULL, 0x27114, 0x473CC },
     { 0x308A01ULL, 0x27158, 0x47448 },
     { 0x30A5F8ULL, 0x27158, 0x47448 },
     { 0x30ABC0ULL, 0x27158, 0x47448 },
