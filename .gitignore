@@ -8,9 +8,9 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 
-# Private agent workflow and local project state
-AGENTS.md
+# Agent workflow and local project state
 **/AGENTS.md
+!/AGENTS.md
 handoff.md
 **/handoff.md
 docs/okf/continuation-playbook.md
