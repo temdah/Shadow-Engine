@@ -65,4 +65,9 @@ routes external results 17-29, and sets `B4=21` for approximately 20 ordinary
 dynamic positions while retaining `A8=4`. The v1.2.1 release remains the
 accepted baseline until v1.2.3 passes runtime testing.
 
+Corrected candidate source commit: `f31769d`. Reproducible ASI SHA-256:
+`5510E9F34F62DD61F6C49E4F946664A9241A743C9E989B98DABF335506ED4CC2`.
+Nexus-layout ZIP: `Installables/ShadowEngine-v1.2.3.zip`, SHA-256
+`675D166CFA14A04EA73AA3FF54BEEEE91D0E4849637A15A26866377ABE41026B`.
+
 [^refactor-notes]: Behavior-neutral refactor notes
