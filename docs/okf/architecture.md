@@ -1,12 +1,16 @@
 ---
 type: Architecture Reference
 title: WD1 Shadow Engine Patch Architecture
-description: Reconstructed shadow path and physical layout used by the current patch.
+description: Historical reconstructed shadow path and v0.9.0 physical layout.
 tags: [wd1, shadow-manager, render-queue, binary-patching]
 timestamp: 2026-08-12T01:20:00+02:00
 ---
 
-# Current source architecture (v0.9.0)
+# Historical source architecture (v0.9.0)
+
+This section documents the v0.9.0 modularization boundary. The current v1.2.0
+refactor architecture is summarized in `../../REFACTOR_NOTES.md` and the module
+map in `../../src/modules/README.md`.
 
 The runtime remains one compact `ShadowEnginePatch.asi`, but the source is now
 an ordered unity build instead of a 2,903-line monolith:

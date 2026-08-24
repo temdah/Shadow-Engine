@@ -1,7 +1,8 @@
 # Early Shadow Bootstrap Architecture
 
-Status: design and binary-analysis result, 2026-08-13. No game files have been
-modified and no external bootstrap has been installed.
+Status: historical design and binary-analysis result, 2026-08-13. The accepted
+v1.2.0 runtime uses the later validated bootstrap path; preserve this document
+as provenance rather than current implementation instructions.
 
 ## v0.1.1 timing result
 

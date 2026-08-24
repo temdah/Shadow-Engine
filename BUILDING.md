@@ -58,3 +58,16 @@ pipeline.
 
 The `.inc` files are ordered unity modules included by
 `src/shadow_engine_patch.c`; do not compile them independently.
+
+## Refactor contract validation
+
+The behavior-neutral refactor gate compares the candidate with an exact tested
+v1.2.0 source tree. It rejects changes to engine policy constants, RVAs, the 46
+queue-tail relocations, the 77-entry Asia map, active signatures or installed
+detour targets:
+
+```powershell
+python -B tests\validate_refactor.py `
+  --baseline <tested-v1.2.0-source> `
+  --candidate .
+```

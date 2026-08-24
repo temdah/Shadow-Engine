@@ -1,6 +1,8 @@
 # After Vehicle Shadows: Disrupt Engine Roadmap
 
-Status: **deferred until the vehicle-shadow pipeline is stable**.
+Status: **future lanes after the accepted v1.2.0 baseline and its refactor
+regression gate**. Emergency-light shadow pressure is the first active engine
+investigation; the remaining lanes stay deferred.
 
 The detailed evidence report is maintained in
 [`okf/engine-system-survey.md`](okf/engine-system-survey.md). This

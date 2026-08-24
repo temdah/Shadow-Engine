@@ -480,7 +480,7 @@ static int resolver_masked_match(const unsigned char *actual,
     return 1;
 }
 
-static int validate_asia_profile_map(void)
+static int validate_runtime_profile_map(const RuntimeProfile *profile)
 {
     static const uint64_t required[]={
         RESOURCE_CONSTRUCTOR_RVA,REGISTER_PASS_RVA,MAP_LOOP_STORE_RVA,
@@ -499,33 +499,34 @@ static int validate_asia_profile_map(void)
         SOURCE_CONFIG_LOOKUP_RVA
     };
     size_t i;
-    const size_t map_count=sizeof(g_asia_rva_map)/sizeof(g_asia_rva_map[0]);
+    const size_t map_count=profile->rva_map_count;
     for(i=0;i<map_count;i++) {
-        if(g_asia_rva_map[i].runtime_rva>=g_runtime_image_size ||
-           (i && g_asia_rva_map[i-1].supported_rva>=
-                 g_asia_rva_map[i].supported_rva)) {
-            append_log("ASIA_RVA_MAP_REJECTED reason=orderingOrBounds index=%u entries=%u noEngineMutation=1",
-                (unsigned)i,(unsigned)map_count);
+        if(profile->rva_map[i].runtime_rva>=g_runtime_state.image_size ||
+           (i && profile->rva_map[i-1].supported_rva>=
+                 profile->rva_map[i].supported_rva)) {
+            append_log("RUNTIME_RVA_MAP_REJECTED profile=%s reason=orderingOrBounds index=%u entries=%u noEngineMutation=1",
+                profile->name,(unsigned)i,(unsigned)map_count);
             return 0;
         }
     }
-    for(i=0;i<sizeof(required)/sizeof(required[0]);i++) {
+    for(i=0;i<ARRAY_COUNT(required);i++) {
         if(!resolve_engine_rva(required[i])) {
-            append_log("ASIA_RVA_MAP_REJECTED reason=missingRequired supportedRva=0x%08X noEngineMutation=1",
-                (unsigned)required[i]);
+            append_log("RUNTIME_RVA_MAP_REJECTED profile=%s reason=missingRequired supportedRva=0x%08X noEngineMutation=1",
+                profile->name,(unsigned)required[i]);
             return 0;
         }
     }
-    for(i=0;i<sizeof(g_tail_patches)/sizeof(g_tail_patches[0]);i++) {
+    for(i=0;i<ARRAY_COUNT(g_tail_patches);i++) {
         if(!resolve_engine_rva(g_tail_patches[i].instruction_rva)) {
-            append_log("ASIA_RVA_MAP_REJECTED reason=missingTail index=%u supportedRva=0x%08X noEngineMutation=1",
-                (unsigned)i,(unsigned)g_tail_patches[i].instruction_rva);
+            append_log("RUNTIME_RVA_MAP_REJECTED profile=%s reason=missingTail index=%u supportedRva=0x%08X noEngineMutation=1",
+                profile->name,(unsigned)i,
+                (unsigned)g_tail_patches[i].instruction_rva);
             return 0;
         }
     }
-    append_log("ASIA_RVA_MAP_VALIDATED entries=%u requiredSites=%u tailSites=%u mapping=independentPerSite noEngineMutation=1",
-        (unsigned)map_count,(unsigned)(sizeof(required)/sizeof(required[0])),
-        (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])));
+    append_log("RUNTIME_RVA_MAP_VALIDATED profile=%s entries=%u requiredSites=%u tailSites=%u mapping=independentPerSite noEngineMutation=1",
+        profile->name,(unsigned)map_count,(unsigned)ARRAY_COUNT(required),
+        (unsigned)ARRAY_COUNT(g_tail_patches));
     return 1;
 }
 
@@ -533,6 +534,7 @@ static int select_runtime_profile(unsigned char *base)
 {
     IMAGE_DOS_HEADER *dos;
     IMAGE_NT_HEADERS64 *nt;
+    const RuntimeProfile *profile;
     if(!readable_memory(base,sizeof(IMAGE_DOS_HEADER))) return 0;
     dos=(IMAGE_DOS_HEADER *)base;
     if(dos->e_magic!=IMAGE_DOS_SIGNATURE || dos->e_lfanew<=0 ||
@@ -544,104 +546,28 @@ static int select_runtime_profile(unsigned char *base)
        nt->OptionalHeader.Magic!=IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         return 0;
 
-    g_runtime_image_size=nt->OptionalHeader.SizeOfImage;
-    g_cluster_a_delta=0;
-    g_cluster_b_delta=0;
-    g_cluster_c_delta=0;
-    g_string_assign_rva=STRING_ASSIGN_RVA;
-    g_native_random_rva=0x000B9780ULL;
-    g_owner_vector_reserve_rva=OWNER_VECTOR_RESERVE_RVA;
-    InterlockedExchange(&g_runtime_profile,0);
-
-    if(nt->OptionalHeader.SizeOfImage==0x06595000U &&
-       nt->FileHeader.TimeDateStamp==0x5CD045B4U &&
-       nt->OptionalHeader.CheckSum==0x01E5793CU &&
-       nt->OptionalHeader.AddressOfEntryPoint==0x04760FA6U) {
-        InterlockedExchange(&g_runtime_profile,1);
-        append_log("RUNTIME_PROFILE_SELECTED profile=supported-04DF timestamp=0x%08X checksum=0x%08X entryRva=0x%08X clusterA=0x00000000 clusterB=0x00000000 clusterC=0x00000000 stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenFullPreflight",
-            (unsigned)nt->FileHeader.TimeDateStamp,
-            (unsigned)nt->OptionalHeader.CheckSum,
-            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
-            (unsigned)g_string_assign_rva,(unsigned)g_native_random_rva);
-        return 1;
-    }
-    if(nt->OptionalHeader.SizeOfImage==0x06595000U &&
-       nt->FileHeader.TimeDateStamp==0x5CD13864U &&
-       nt->OptionalHeader.CheckSum==0x01E4FD51U &&
-       nt->OptionalHeader.AddressOfEntryPoint==0x05824EE5U) {
-        g_cluster_a_delta=0x00597690ULL;
-        g_cluster_b_delta=0x005FDC60ULL;
-        g_cluster_c_delta=0x00524650ULL;
-        g_string_assign_rva=0x00136CD0ULL;
-        g_native_random_rva=0x0011A380ULL;
-        InterlockedExchange(&g_runtime_profile,2);
-        append_log("RUNTIME_PROFILE_SELECTED profile=a4ee-signed-variant timestamp=0x%08X checksum=0x%08X entryRva=0x%08X clusterA=0x%08X clusterB=0x%08X clusterC=0x%08X stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenFullPreflight",
-            (unsigned)nt->FileHeader.TimeDateStamp,
-            (unsigned)nt->OptionalHeader.CheckSum,
-            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
-            (unsigned)g_cluster_a_delta,(unsigned)g_cluster_b_delta,
-            (unsigned)g_cluster_c_delta,(unsigned)g_string_assign_rva,
-            (unsigned)g_native_random_rva);
-        return 1;
-    }
-    if(nt->OptionalHeader.SizeOfImage==0x04ED6000U &&
-       nt->FileHeader.TimeDateStamp==0x5BE5AA1AU &&
-       nt->OptionalHeader.CheckSum==0x048AF60CU &&
-       nt->OptionalHeader.AddressOfEntryPoint==0x02F58AC8U) {
-        g_cluster_a_delta=0x005B83F0ULL;
-        g_cluster_b_delta=0x0061E710ULL;
-        g_cluster_c_delta=0x00545D80ULL;
-        g_string_assign_rva=0x0013A080ULL;
-        g_native_random_rva=0x0011D660ULL;
-        InterlockedExchange(&g_runtime_profile,3);
-        append_log("RUNTIME_PROFILE_SELECTED profile=vmpless-1.06 timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X clusterA=0x%08X clusterB=0x%08X clusterC=0x%08X stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenFullPreflight",
-            (unsigned)nt->FileHeader.TimeDateStamp,
-            (unsigned)nt->OptionalHeader.CheckSum,
-            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
-            (unsigned)nt->OptionalHeader.SizeOfImage,
-            (unsigned)g_cluster_a_delta,(unsigned)g_cluster_b_delta,
-            (unsigned)g_cluster_c_delta,(unsigned)g_string_assign_rva,
-            (unsigned)g_native_random_rva);
-        return 1;
-    }
-    if(nt->OptionalHeader.SizeOfImage==0x041AB000U &&
-       nt->FileHeader.TimeDateStamp==0x55DC1ECDU &&
-       nt->OptionalHeader.CheckSum==0x03B84DA7U &&
-       nt->OptionalHeader.AddressOfEntryPoint==0x021FD388U) {
-        g_cluster_a_delta=0x019FFDE0ULL;
-        g_cluster_b_delta=0x01A66680ULL;
-        g_cluster_c_delta=0x0198C410ULL;
-        g_string_assign_rva=0x00136A50ULL;
-        g_native_random_rva=0x0011A190ULL;
-        InterlockedExchange(&g_runtime_profile,4);
-        append_log("RUNTIME_PROFILE_SELECTED profile=complete-edition-1.06.329 timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X clusterA=0x%08X clusterB=0x%08X clusterC=0x%08X stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenFullPreflight",
-            (unsigned)nt->FileHeader.TimeDateStamp,
-            (unsigned)nt->OptionalHeader.CheckSum,
-            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
-            (unsigned)nt->OptionalHeader.SizeOfImage,
-            (unsigned)g_cluster_a_delta,(unsigned)g_cluster_b_delta,
-            (unsigned)g_cluster_c_delta,(unsigned)g_string_assign_rva,
-            (unsigned)g_native_random_rva);
-        return 1;
-    }
-    if(nt->OptionalHeader.SizeOfImage==0x07EE1000U &&
-       nt->FileHeader.TimeDateStamp==0x543589C5U &&
-       nt->OptionalHeader.CheckSum==0x02B88696U &&
-       nt->OptionalHeader.AddressOfEntryPoint==0x07C88AFEU) {
-        g_string_assign_rva=0x00127F30ULL;
-        g_native_random_rva=0x00170020ULL;
-        InterlockedExchange(&g_runtime_profile,5);
-        if(!validate_asia_profile_map()) {
-            InterlockedExchange(&g_runtime_profile,0);
+    clear_runtime_profile();
+    profile=find_runtime_profile(nt->OptionalHeader.SizeOfImage,
+        nt->FileHeader.TimeDateStamp,nt->OptionalHeader.CheckSum,
+        nt->OptionalHeader.AddressOfEntryPoint);
+    if(profile) {
+        select_runtime_profile_state(profile);
+        if(profile->rva_strategy==RUNTIME_RVA_EXPLICIT &&
+           !validate_runtime_profile_map(profile)) {
+            clear_runtime_profile();
             return 0;
         }
-        append_log("RUNTIME_PROFILE_SELECTED profile=asia-miru-1.06.329 timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X independentRvaSites=%u stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenIndependentMapThenFullPreflight",
-            (unsigned)nt->FileHeader.TimeDateStamp,
-            (unsigned)nt->OptionalHeader.CheckSum,
-            (unsigned)nt->OptionalHeader.AddressOfEntryPoint,
-            (unsigned)nt->OptionalHeader.SizeOfImage,
-            (unsigned)(sizeof(g_asia_rva_map)/sizeof(g_asia_rva_map[0])),
-            (unsigned)g_string_assign_rva,(unsigned)g_native_random_rva);
+        append_log("RUNTIME_PROFILE_SELECTED profile=%s profileId=%ld timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X rvaStrategy=%s clusterA=0x%08X clusterB=0x%08X clusterC=0x%08X independentRvaSites=%u stringAssignRva=0x%08X nativeRandomRva=0x%08X selection=peIdentityThenProfileValidationThenFullPreflight",
+            profile->name,(long)profile->id,(unsigned)profile->timestamp,
+            (unsigned)profile->checksum,(unsigned)profile->entry_rva,
+            (unsigned)profile->image_size,
+            profile->rva_strategy==RUNTIME_RVA_EXPLICIT ? "explicit":"clustered",
+            (unsigned)profile->cluster_a_delta,
+            (unsigned)profile->cluster_b_delta,
+            (unsigned)profile->cluster_c_delta,
+            (unsigned)profile->rva_map_count,
+            (unsigned)profile->string_assign_rva,
+            (unsigned)profile->native_random_rva);
         return 1;
     }
     append_log("RUNTIME_PROFILE_UNKNOWN timestamp=0x%08X checksum=0x%08X entryRva=0x%08X imageSize=0x%08X action=readOnlyFullSiteMap noEngineMutation=1",
@@ -676,7 +602,7 @@ static int recover_owner_vector_reserve(void)
         signature_probe_hex(call-7,28,call_hex,sizeof(call_hex));
     if(!context_ok) {
         append_log("OWNER_RESERVE_RECOVERY profile=%ld callsiteRva=0x%08X contextValid=0 targetRva=0x00000000 targetValid=0 actualCall28=%s noEngineMutation=1",
-            (long)g_runtime_profile,
+            (long)runtime_profile_id(),
             (unsigned)RESOLVED_ENGINE_RVA(OWNER_VECTOR_RESERVE_CALL_RVA),
             call_hex);
         return 0;
@@ -684,25 +610,25 @@ static int recover_owner_vector_reserve(void)
     memcpy(&rel,call+1,4);
     target_rva=RESOLVED_ENGINE_RVA(OWNER_VECTOR_RESERVE_CALL_RVA)+5+
         (int64_t)rel;
-    if(target_rva<g_runtime_image_size &&
+    if(target_rva<g_runtime_state.image_size &&
        readable_memory(g_disrupt_base+target_rva,sizeof(reserve_prologue)))
         signature_probe_hex(g_disrupt_base+target_rva,
             sizeof(reserve_prologue),target_hex,sizeof(target_hex));
-    if(target_rva>=g_runtime_image_size ||
+    if(target_rva>=g_runtime_state.image_size ||
        !readable_memory(g_disrupt_base+target_rva,sizeof(reserve_prologue)) ||
        memcmp(g_disrupt_base+target_rva,reserve_prologue,
               sizeof(reserve_prologue))!=0) {
         append_log("OWNER_RESERVE_RECOVERY profile=%ld callsiteRva=0x%08X contextValid=1 targetRva=0x%08X targetValid=0 actualCall28=%s actualTarget16=%s noEngineMutation=1",
-            (long)g_runtime_profile,
+            (long)runtime_profile_id(),
             (unsigned)RESOLVED_ENGINE_RVA(OWNER_VECTOR_RESERVE_CALL_RVA),
             (unsigned)target_rva,call_hex,target_hex);
         return 0;
     }
-    g_owner_vector_reserve_rva=target_rva;
+    g_runtime_state.owner_vector_reserve_rva=target_rva;
     append_log("OWNER_RESERVE_RECOVERY profile=%ld callsiteRva=0x%08X contextValid=1 targetRva=0x%08X targetValid=1 method=translatedCallsiteRel32",
-        (long)g_runtime_profile,
+        (long)runtime_profile_id(),
         (unsigned)RESOLVED_ENGINE_RVA(OWNER_VECTOR_RESERVE_CALL_RVA),
-        (unsigned)g_owner_vector_reserve_rva);
+        (unsigned)g_runtime_state.owner_vector_reserve_rva);
     return 1;
 }
 
@@ -732,25 +658,38 @@ static int validate_selected_profile_helpers(void)
     static const unsigned char random_mask[31]={
         1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,
         1,1,1,1,1,0,0,0,0,1,1,1,1};
-    int string_ok=memcmp(g_disrupt_base+g_string_assign_rva,string_assign,
+    int string_ok=memcmp(g_disrupt_base+runtime_string_assign_rva(),string_assign,
         sizeof(string_assign))==0;
-    int owner_ok=memcmp(g_disrupt_base+g_owner_vector_reserve_rva,owner_reserve,
+    int owner_ok=memcmp(g_disrupt_base+g_runtime_state.owner_vector_reserve_rva,
+        owner_reserve,
         sizeof(owner_reserve))==0;
     int epilogue_ok=memcmp(ENGINE_ADDRESS(SLICE_RESULT_EPILOGUE_RVA),
         slice_epilogue,sizeof(slice_epilogue))==0;
     int profile_ok=resolver_masked_match(ENGINE_ADDRESS(PROFILE_CALLBACK_RVA),
         profile_callback,profile_mask,sizeof(profile_callback));
-    int random_ok=resolver_masked_match(g_disrupt_base+g_native_random_rva,
+    int random_ok=resolver_masked_match(
+        g_disrupt_base+runtime_native_random_rva(),
         random_pattern,random_mask,sizeof(random_pattern));
     append_log("RUNTIME_PROFILE_HELPERS profile=%ld stringAssign=%u ownerReserve=%u sliceEpilogue=%u profileCallback=%u nativeRandom=%u stringValueDependency=localNonNullPayloadPlus0x18",
-        (long)g_runtime_profile,string_ok ? 1U:0U,owner_ok ? 1U:0U,
+        (long)runtime_profile_id(),string_ok ? 1U:0U,owner_ok ? 1U:0U,
         epilogue_ok ? 1U:0U,profile_ok ? 1U:0U,random_ok ? 1U:0U);
     return string_ok && owner_ok && epilogue_ok && profile_ok && random_ok;
 }
 
-static int install_early_construction_hooks(HMODULE disrupt)
+typedef struct ShadowPatchPlan {
+    const RuntimeProfile *profile;
+    const unsigned char *frame_builder_prologue;
+    size_t frame_builder_prologue_size;
+    int prepared;
+} ShadowPatchPlan;
+
+static ShadowPatchPlan g_patch_plan;
+
+static int prepare_early_patch_plan(HMODULE disrupt,ShadowPatchPlan *plan)
 {
     unsigned char *base=(unsigned char *)disrupt;
+    if(!plan) return 0;
+    memset(plan,0,sizeof(*plan));
     g_disrupt_base=base;
     if(!select_runtime_profile(base)) {
         run_signature_probe(base);
@@ -759,14 +698,14 @@ static int install_early_construction_hooks(HMODULE disrupt)
     }
     if(!recover_owner_vector_reserve()) {
         append_log("RUNTIME_PROFILE_REJECTED profile=%ld reason=ownerReserveCallsiteRecoveryFailed action=readOnlyFullSiteMap noEngineMutation=1",
-            (long)g_runtime_profile);
+            (long)runtime_profile_id());
         run_signature_probe(base);
         append_log("STAGE_D_ABORT reason=ownerReserveCallsiteRecoveryFailed diagnosticMapComplete=1 noEngineMutation=1");
         return 0;
     }
     if(!validate_selected_profile_helpers()) {
         append_log("RUNTIME_PROFILE_REJECTED profile=%ld reason=helperValidationFailed action=readOnlyFullSiteMap noEngineMutation=1",
-            (long)g_runtime_profile);
+            (long)runtime_profile_id());
         run_signature_probe(base);
         append_log("STAGE_D_ABORT reason=selectedProfileHelperMismatch diagnosticMapComplete=1 noEngineMutation=1");
         return 0;
@@ -792,6 +731,20 @@ static int install_early_construction_hooks(HMODULE disrupt)
     append_log("STAGE_M_PREFLIGHT_COMPLETE signatures=resource,pass,mapLoop,earlyQueueLayout,sliceResultStores,deferredHandleConsumers,deferredPassIndexConsumers,deferredV1216Scheduler,deferredShadowManager,rendererQueue,faceCostReader,resourceWrapperDirect,renderRecordConstructor,frameBuilder,postCallObjectRenderers,renderRecordRelease requiredPassMaxKey=0x%04X requiredPassSlots=%u passTableVerification=readOnly diagnostics=minimal tailRelocations=%u noEngineMutationBeforeThisMarker=1",
         REQUIRED_PASS_MAX_KEY,REQUIRED_PASS_TABLE_SLOTS,
         (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])));
+    plan->profile=g_runtime_state.selected;
+    plan->frame_builder_prologue=runtime_frame_builder_prologue(
+        &plan->frame_builder_prologue_size);
+    plan->prepared=plan->profile && plan->frame_builder_prologue &&
+        plan->frame_builder_prologue_size>0;
+    return plan->prepared;
+}
+
+static int commit_early_patch_plan(const ShadowPatchPlan *plan)
+{
+    if(!plan || !plan->prepared || plan->profile!=g_runtime_state.selected) {
+        append_log("STAGE_E_ABORT mutation=early_commit invalidPreparedPlan=1 noEngineMutation=1");
+        return 0;
+    }
     if(!apply_queue_layout()) {
         append_log("STAGE_E_ABORT mutation=early_queue_layout installFailed=1 beforeQueueConstruction=1");
         return 0;
@@ -827,12 +780,27 @@ static int install_early_construction_hooks(HMODULE disrupt)
     return 1;
 }
 
+static int install_early_construction_hooks(HMODULE disrupt)
+{
+    if(!prepare_early_patch_plan(disrupt,&g_patch_plan)) return 0;
+    return commit_early_patch_plan(&g_patch_plan);
+}
+
 static int install_deferred_downstream(void)
 {
     HMODULE user32;
-    const unsigned char *frame_builder_prologue;
-    size_t frame_builder_prologue_size;
+    const unsigned char *frame_builder_prologue=
+        g_patch_plan.frame_builder_prologue;
+    size_t frame_builder_prologue_size=
+        g_patch_plan.frame_builder_prologue_size;
     if(InterlockedCompareExchange(&g_downstream_state,1,0)!=0) return 0;
+    if(!g_patch_plan.prepared ||
+       g_patch_plan.profile!=g_runtime_state.selected ||
+       !frame_builder_prologue || !frame_builder_prologue_size) {
+        append_log("STAGE_E_DOWNSTREAM_ABORT invalidPreparedPlan=1 noDeferredMutation=1");
+        InterlockedExchange(&g_downstream_state,-1);
+        return 0;
+    }
     if(!validate_deferred_sites_after_early_queue(g_disrupt_base)) {
         append_log("STAGE_E_DOWNSTREAM_ABORT signaturesChangedDuringDeferral=1");
         InterlockedExchange(&g_downstream_state,-1);
@@ -853,7 +821,7 @@ static int install_deferred_downstream(void)
     }
     g_profile_callback=(ProfileCallbackFn)ENGINE_ADDRESS(PROFILE_CALLBACK_RVA);
     g_owner_vector_reserve=(OwnerVectorReserveFn)
-        (g_disrupt_base+g_owner_vector_reserve_rva);
+        (g_disrupt_base+g_runtime_state.owner_vector_reserve_rva);
     if(!install_manager_detour()) {
         append_log("STAGE_E_DOWNSTREAM_ABORT managerHookFailed=1");
         InterlockedExchange(&g_downstream_state,-1);
@@ -875,10 +843,6 @@ static int install_deferred_downstream(void)
     }
     g_original_resource_wrapper=(ResourceWrapperFn)
         ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA);
-    frame_builder_prologue=g_runtime_profile==5 ?
-        g_frame_builder_asia_prologue:g_frame_builder_prologue;
-    frame_builder_prologue_size=g_runtime_profile==5 ?
-        sizeof(g_frame_builder_asia_prologue):sizeof(g_frame_builder_prologue);
     if(!install_detour(ENGINE_ADDRESS(FRAME_BUILDER_RVA),
         frame_builder_prologue,frame_builder_prologue_size,
         hooked_external_frame_builder,(void **)&g_original_frame_builder)) {
@@ -988,7 +952,7 @@ static DWORD WINAPI stage_e_worker(void *unused)
                     current_original);
                 append_log("DESIGN role=engine-only stage=Z-post-fix-performance-control earlyNativeMaps=24 earlyPasses17to24=1 passTableAllocatorHook=0 passTableVerification=readOnly requiredPassMaxKey=0x310C requiredPassSlots=50 directAddedSlotVerification=1 failClosedBeforeExtraPassRegistration=1 queueAllocationAndTailRelocationsBeforeConstruction=1 remainingDownstreamRoutingDeferredUntilAfterConstructors=1 stabilizationMs=%u schedulerInitThen=16 schedulerFloorThen=16 schedulerUpperThen=16 schedulerUpperRva=0x2E9C3B cacheOwnerCeilingA8=4 ownerVectorPhysicalReserve=8 ownerRecordStride=0x700 reserveRva=0x319160 failClosedOnReserveMismatch=1 physicalFaceBudget=24 wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 targetOrdinaryDynamicPositions=15 rendererProbeActive=1 queueTailIntegrityProbe=1 nativeSliceResultCount=17 externalSliceResultCount=7 sliceResultBoundsRelays=2 routedSliceIndices=17-23 externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B rejectedIndexedWriterDetourRemoved=1 nullFaceCostGuard=1 resourceProducerWrapperRva=0x427860 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 renderRecordLifecycleHooks=constructor,builder,postCallObjectRenderers,release lifecycleRecordSlots=%u repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal stageYSummaryPeriodMs=%u manualQueueAndStageYCapture=F8,F9 fieldMutation=externalSliceResultRouting fullCandidatePassthrough=1 filtering=0 vehicleLimiter=0",
                     DOWNSTREAM_STABILIZE_MS,LIFECYCLE_RECORD_SLOTS,
-                    PROVENANCE_SUMMARY_PERIOD_MS);
+                    EXTERNAL_SLICE_SUMMARY_PERIOD_MS);
                 append_log("TROPLO_BIND module=%p error=%lu boundMs=%.3f",
                     g_snapshot.troplo,(unsigned long)g_snapshot.troplo_error,
                     elapsed_ms(g_snapshot.troplo_return_time));

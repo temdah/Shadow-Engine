@@ -7,18 +7,18 @@ initialization order or hook trampoline behavior.
 
 The module order is a contract:
 
-1. `00_shared_config_state.inc` owns constants, signatures, types, bounded state
-   and forward declarations.
-2. `10_runtime_primitives.inc` owns logging, memory checks, atomic helpers and
+1. `00_shared_config_state.inc` owns shared engine constants, hook signatures,
+   active bounded state and forward declarations.
+2. `05_runtime_profiles.inc` owns the five immutable PE identities, clustered
+   or explicit RVA strategy, helper RVAs and per-profile detour prologue.
+3. `10_runtime_primitives.inc` owns logging, memory checks, atomic helpers and
    generic detour installation.
-3. `20_manager_owner_profile.inc` owns the manager profile and owner-vector
+4. `20_manager_owner_profile.inc` owns the manager profile and owner-vector
    pre-reservation.
-4. `30_renderer_queue_diagnostics.inc` owns whole-record face admission, queue
+5. `30_renderer_queue_diagnostics.inc` owns whole-record face admission, queue
    validation, residency sampling and F8/F9 queue capture.
-5. `40_render_record_repair.inc` owns render-record lineage and black-world
-   repair/sidecar lifetime.
-6. `50_resource_lifecycle_trace.inc` owns resource wrapper/producer tracing and
-   null acquire/release compaction.
+6. `40_external_slice_results.inc` owns generation-safe external SliceExecute
+   result storage, consumption, release and bounded F8/F9 diagnostics.
 7. `60_engine_expansion.inc` owns maps, passes, queue layout, routing relays and
    scheduler writes.
 8. `70_bootstrap_orchestration.inc` owns signature preflight, phased startup and
@@ -29,7 +29,6 @@ points in module 00. Earlier modules must not depend on implementations in later
 modules except through those declarations. Runtime-policy changes must stay in
 their owning module instead of being added to the bootstrap orchestrator.
 
-This is intentionally a unity build rather than eight separately linked object
-files. The v0.8.9 code relies on shared static state and a tested TinyCC binary
-layout. Separate translation units can be considered later, after narrow module
-interfaces replace the shared-state surface and an in-game A/B validates it.
+This remains a unity build until the refactored interfaces pass the full runtime
+matrix. Regional differences must be added only through `RuntimeProfile`; core
+modules must not branch on profile numbers or storefront labels.

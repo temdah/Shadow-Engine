@@ -8,6 +8,9 @@ timestamp: 2026-08-13T12:00:00+02:00
 
 # Executive correction
 
+> Historical audit through the dated v1.2.x research series. Current accepted
+> release and continuation status are maintained in `index.md`.
+
 v1.2.16 has a **24-entry address/layout envelope**, but only the native
 `ShadowMap0..15` resource handles are populated at runtime. The live initializer
 copies 16 native handles, registers render passes 17-24, and explicitly reports

@@ -356,7 +356,7 @@ static int install_map_range_loop_extension(void)
     uint64_t handle_address=(uint64_t)(uintptr_t)&g_extra_handles[0];
     uint64_t companion_address=(uint64_t)(uintptr_t)&g_extra_companions[0][0];
     uint64_t random_function=(uint64_t)(uintptr_t)
-        (g_disrupt_base+g_native_random_rva);
+        (g_disrupt_base+runtime_native_random_rva());
     static const unsigned char expected_bound[9]={
         0x83,0xFF,0x10,0x0F,0x82,0xEE,0xFE,0xFF,0xFF
     };
@@ -428,7 +428,8 @@ static int validate_map_range_loop_extension(void)
     memcpy(&rel2,store+20,4);
     call1=RESOLVED_ENGINE_RVA(MAP_LOOP_STORE_RVA)+16+(int64_t)rel1;
     call2=RESOLVED_ENGINE_RVA(MAP_LOOP_STORE_RVA)+24+(int64_t)rel2;
-    return call1==g_native_random_rva && call2==g_native_random_rva;
+    return call1==runtime_native_random_rva() &&
+           call2==runtime_native_random_rva();
 }
 
 /* v0.8.4 proved this registry already owns 64 physical slots (maximum 0x3F00).
@@ -535,7 +536,7 @@ static void __fastcall hooked_register_pass(void *registry,uint32_t key,
         InterlockedIncrement(&g_shadow_hits);
         if(key==0x200CU) {
             StringAssignFn assign=(StringAssignFn)
-                (g_disrupt_base+g_string_assign_rva);
+                (g_disrupt_base+runtime_string_assign_rva());
             InterlockedExchange(&g_last_native_shadow_seen,1);
             if(InterlockedCompareExchange(&g_range_pass_state,1,0)==0) {
                 uint32_t i;
@@ -637,10 +638,8 @@ static int validate_downstream_sites(unsigned char *base)
         0x48,0x8B,0x4C,0xCA,0x08,0x48,0x85,0xC9,0x74,0x29,
         0x48,0x8B,0x09,0x48,0x8D,0x94
     };
-    frame_builder_prologue=g_runtime_profile==5 ?
-        g_frame_builder_asia_prologue:g_frame_builder_prologue;
-    frame_builder_prologue_size=g_runtime_profile==5 ?
-        sizeof(g_frame_builder_asia_prologue):sizeof(g_frame_builder_prologue);
+    frame_builder_prologue=runtime_frame_builder_prologue(
+        &frame_builder_prologue_size);
     return validate_queue_layout() &&
            validate_slice_result_store_sites(0x27170U) &&
            validate_handle_relays() &&
@@ -666,7 +665,8 @@ static int validate_downstream_sites(unsigned char *base)
                   sizeof(g_render_record_constructor_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(SOURCE_CONFIG_LOOKUP_RVA),source_config_lookup,
                   sizeof(source_config_lookup))==0 &&
-           memcmp(g_disrupt_base+g_owner_vector_reserve_rva,owner_reserve,
+           memcmp(g_disrupt_base+g_runtime_state.owner_vector_reserve_rva,
+                  owner_reserve,
                   sizeof(owner_reserve))==0;
 }
 static int validate_deferred_sites_after_early_queue(unsigned char *base)
@@ -680,10 +680,8 @@ static int validate_deferred_sites_after_early_queue(unsigned char *base)
         0x48,0x8B,0x4C,0xCA,0x08,0x48,0x85,0xC9,0x74,0x29,
         0x48,0x8B,0x09,0x48,0x8D,0x94
     };
-    frame_builder_prologue=g_runtime_profile==5 ?
-        g_frame_builder_asia_prologue:g_frame_builder_prologue;
-    frame_builder_prologue_size=g_runtime_profile==5 ?
-        sizeof(g_frame_builder_asia_prologue):sizeof(g_frame_builder_prologue);
+    frame_builder_prologue=runtime_frame_builder_prologue(
+        &frame_builder_prologue_size);
     return validate_queue_layout_applied() &&
            validate_slice_result_store_sites(RENDER_QUEUE_RESULT_OFFSET) &&
            validate_handle_relays() &&
@@ -706,6 +704,7 @@ static int validate_deferred_sites_after_early_queue(unsigned char *base)
                   sizeof(g_render_record_release_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(SOURCE_CONFIG_LOOKUP_RVA),source_config_lookup,
                   sizeof(source_config_lookup))==0 &&
-           memcmp(g_disrupt_base+g_owner_vector_reserve_rva,owner_reserve,
+           memcmp(g_disrupt_base+g_runtime_state.owner_vector_reserve_rva,
+                  owner_reserve,
                   sizeof(owner_reserve))==0;
 }

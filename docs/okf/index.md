@@ -1,7 +1,7 @@
 ---
 okf_version: "0.1"
 title: Watch Dogs Dynamic Vehicle Shadows Knowledge Bundle
-version: "1.0.0"
+version: "1.2.0"
 ---
 
 # Watch Dogs Dynamic Vehicle Shadows
@@ -11,7 +11,20 @@ Start with the architecture and findings documents. Referenced raw runtime
 artifacts are private provenance and are governed by the
 [evidence policy](../EVIDENCE_POLICY.md).
 
-All version labels, artifact names and hashes below identify private experiments
+## Current baseline — 2026-08-24
+
+- Accepted public/runtime baseline: Shadow Engine v1.2.0, commit `02762e6`.
+- Supported runtime profiles: Global/04DF, Shev/A4EE, VMPless, Complete
+  Edition, and Asia/Miru.
+- Current source candidate: behavior-neutral v1.2.0 refactor; offline gates
+  pass, but the five-profile runtime regression matrix is still required.
+- Next feature after that gate: diagnose emergency-light shadow pressure before
+  changing any capacity, residency, admission, or scheduling value.
+- Older headings containing “current” or “next” describe their dated
+  experiment, not present authority. This section and the repository README own
+  current public status.
+
+All older version labels, artifact names and hashes below identify private experiments
 or preserved evidence. No compiled mod build or installable release is published
 in this repository.
 

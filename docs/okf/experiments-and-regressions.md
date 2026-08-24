@@ -8,6 +8,10 @@ timestamp: 2026-08-12T01:20:00+02:00
 
 # v1.2.25 - temporal Aiden-centered four-node tracker (awaiting test)
 
+> Historical experiment ledger. Version labels in this file belong to the
+> pre-release research series and are not newer than public Shadow Engine
+> v1.2.0. See `index.md` for current authority.
+
 - Branches directly from v1.2.16; no v1.2.18+ classifier logic retained.
 - Motion history distinguishes movable type-3 sources from static type-3 world
   lights without component-handle guesses.

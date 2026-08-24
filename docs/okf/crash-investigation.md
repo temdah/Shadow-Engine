@@ -8,6 +8,10 @@ timestamp: 2026-08-12T02:00:00+02:00
 
 # Version boundary
 
+> Historical investigation. These rejected v1.2.3-v1.2.6 experiment labels
+> predate the accepted Shadow Engine v1.2.0 public release line and must not be
+> interpreted as later semantic versions. See `index.md` for current status.
+
 v1.2.2 is the last build that launches and runs through the relevant test, but it
 is visually wrong. Its partition routine admits special type 0/2 records, all
 type-1 world records, and at most four direction-matched type-3 records. It drops

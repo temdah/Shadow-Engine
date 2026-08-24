@@ -6,7 +6,11 @@ This report contains only behavior demonstrated by saved runtime evidence or
 the user's controlled in-game tests. It does not promote v0.8.0 to a stable
 release and does not infer untested capability from allocated storage.
 
-## Current tested artifact
+Historical scope: this report ends at v0.8.0. It is retained as an evidence
+boundary and does not supersede the accepted v1.2.0 baseline recorded in
+`okf/index.md`.
+
+## Tested artifact at report date
 
 - Artifact: `Installables\ShadowEnginePatch_Coherent12x4_v0.8.0.zip`
 - ZIP SHA-256:

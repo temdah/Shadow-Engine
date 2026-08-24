@@ -105,63 +105,6 @@ static void trace_queue_tail_integrity(void *queue,const char *phase,
     }
 }
 
-static int copy_resource_null_snapshot(const ResourceNullSnapshot *source,
-    ResourceNullSnapshot *destination)
-{
-    LONG before=InterlockedCompareExchange((volatile LONG *)&source->serial,0,0);
-    LONG after;
-    if(before<=0) return 0;
-    memcpy(destination,source,sizeof(*destination));
-    after=InterlockedCompareExchange((volatile LONG *)&source->serial,0,0);
-    return before==after && destination->serial==before;
-}
-
-static void log_one_manual_resource_snapshot(const char *state,LONG capture_serial,
-    const char *direction,const ResourceNullSnapshot *source)
-{
-    ResourceNullSnapshot value;
-    LONG current_renderer=InterlockedCompareExchange(&g_renderer_calls,0,0);
-    if(!copy_resource_null_snapshot(source,&value)) {
-        append_log("STAGE_M_MANUAL_RESOURCE state=%s captureSerial=%ld direction=%s available=0",
-            state,(long)capture_serial,direction);
-        return;
-    }
-    append_log("STAGE_M_MANUAL_RESOURCE state=%s captureSerial=%ld direction=%s available=1 event=%ld submitCall=%ld eventRendererCall=%ld ageRendererCalls=%ld rendererContext=%ld queue=%p entries=%u faces=%u highestMap=%ld manager=%p active=%u mode=%u argument7High=0x%08X argument7Low=0x%08X primary=%p primaryCount=%u primaryValid=%u primaryNullMask=0x%08X%08X secondary=%p secondaryCount=%u secondaryValid=%u secondaryNullMask=0x%08X%08X producerFound=%ld producerCall=%ld producerCaller=%p producerCallerRva=0x%08X%08X producerPrimaryValid=%u producerPrimaryNullMask=0x%08X%08X producerSecondaryValid=%u producerSecondaryNullMask=0x%08X%08X",
-        state,(long)capture_serial,direction,(long)value.serial,
-        (long)value.submit_call,(long)value.renderer_call,
-        (long)(current_renderer-value.renderer_call),(long)value.renderer_context,
-        value.queue,value.entries,value.faces,(long)(LONG)value.highest_map,
-        value.manager,
-        value.active,value.mode,(uint32_t)(value.argument7>>32),
-        (uint32_t)value.argument7,value.primary,value.primary_count,
-        value.primary_valid,(uint32_t)(value.primary_null_mask>>32),
-        (uint32_t)value.primary_null_mask,value.secondary,value.secondary_count,
-        value.secondary_valid,(uint32_t)(value.secondary_null_mask>>32),
-        (uint32_t)value.secondary_null_mask,(long)value.producer_found,
-        (long)value.producer_call,value.producer_caller,
-        (uint32_t)(value.producer_caller_rva>>32),
-        (uint32_t)value.producer_caller_rva,value.producer_primary_valid,
-        (uint32_t)(value.producer_primary_null_mask>>32),
-        (uint32_t)value.producer_primary_null_mask,
-        value.producer_secondary_valid,
-        (uint32_t)(value.producer_secondary_null_mask>>32),
-        (uint32_t)value.producer_secondary_null_mask);
-}
-
-static void log_manual_resource_snapshot(const char *state,LONG capture_serial)
-{
-    append_log("STAGE_M_MANUAL_RESOURCE_SUMMARY state=%s captureSerial=%ld wrapperCalls=%ld submitCalls=%ld nullEvents=%ld nullEventsWithRendererContext=%ld nullEventsWithExtraMaps=%ld nullSubmitDrops=%ld nullAcquireDrops=%ld nullReleaseDrops=%ld",
-        state,(long)capture_serial,(long)g_resource_wrapper_calls,
-        (long)g_resource_submit_calls,
-        (long)g_null_resource_events,(long)g_null_events_with_renderer_context,
-        (long)g_null_events_with_extra_maps,(long)g_null_submit_drops,
-        (long)g_null_acquire_drops,(long)g_null_release_drops);
-    log_one_manual_resource_snapshot(state,capture_serial,"acquire",
-        &g_last_null_acquire);
-    log_one_manual_resource_snapshot(state,capture_serial,"release",
-        &g_last_null_release);
-}
-
 static void log_manual_queue_capture(const char *state,void *manager,void *queue,
     uint32_t original_entries,uint32_t requested_faces,
     uint32_t admitted_entries,uint32_t admitted_faces)
@@ -270,17 +213,8 @@ static void __fastcall hooked_renderer_queue(void *manager,void *queue,
     }
     poll_manual_capture(manager,queue,original_entries,requested_faces,
         admitted_entries,admitted_faces);
-    g_active_renderer_queue=queue;
-    InterlockedExchange(&g_active_renderer_call,
-        InterlockedCompareExchange(&g_renderer_calls,0,0));
-    InterlockedExchange(&g_active_renderer_entries,(LONG)admitted_entries);
-    InterlockedExchange(&g_active_renderer_faces,(LONG)admitted_faces);
-    InterlockedExchange(&g_active_renderer_highest_map,
-        admitted_faces ? (LONG)(admitted_faces-1U) : -1);
-    InterlockedExchange(&g_active_renderer_context,1);
     g_original_renderer_queue(manager,queue,argument3,argument4,argument5,
         argument6,argument7,argument8,argument9);
-    InterlockedExchange(&g_active_renderer_context,0);
     trace_queue_tail_integrity(queue,"afterOriginalBeforeCountRestore",
         &g_tail_invalid_after_renderer,original_entries,requested_faces);
     InterlockedIncrement(&g_renderer_calls);
