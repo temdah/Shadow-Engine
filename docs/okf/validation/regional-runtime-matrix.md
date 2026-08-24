@@ -61,3 +61,27 @@ gameplay.
 Extreme traffic on VMPless and Complete Edition exposed temporary world-shadow
 loss near the 24-face physical budget. This is retained as the next capacity
 investigation rather than a regional compatibility failure.
+
+# v1.2.3 calibration result
+
+The frozen v1.2.3 ASI passed a fresh manual matrix on Global/04DF, Shev/A4EE,
+VMPless, Complete Edition, and Asia/Miru. All five exact executable layouts
+matched the offline corpus prediction: expected profile selection, complete
+preflight, operational patch activation, stable gameplay, and no baseline
+regional shadow regression.
+
+Complete Edition activated its manager state after the one-time completion
+observer timed out. Later owner-reserve, `B4=21`, `A8=4`, extra-capacity,
+renderer, and lifecycle markers proved successful activation. This identifies
+a false negative in the legacy log classifier, not a regional failure.
+
+The matrix calibrates the risk tiers above: future shared capacity/scheduling
+changes with an unchanged compatibility surface may use the five-profile
+offline corpus plus one representative high-load runtime test. A profile,
+resolver, mapping, signature, preflight, bootstrap, hook, ABI, or transaction
+change still expands manual testing to affected profiles or all five.
+
+Under extreme Complete Edition load, rapid dynamic spotlight/moon-shadow
+flicker remained at 26 manager admissions while only 26 of 30 physical faces
+were occupied. This is a shared manager admission/residency feature limit, not
+a regional compatibility failure.

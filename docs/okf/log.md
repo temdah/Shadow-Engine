@@ -2,6 +2,8 @@
 
 ## 2026-08-24
 
+* **v1.2.3 five-profile calibration**: The frozen candidate matched the offline compatibility prediction on all five profiles; established the corpus-plus-representative-run tier for future shared-policy changes and exposed one delayed-activation classifier false negative.
+* **Residual pressure limit**: Complete Edition reproduced rapid spotlight/moon-shadow eviction and reacquisition at saturated manager admission while physical occupancy remained 26/30, directing the next investigation toward admission/residency churn.
 * **v1.2.3 runtime result**: Global/04DF passed an extreme-load scene without the previous shadow-quality reduction or disappearance; one distant flicker remains unclassified.
 * **Regional automation**: Added a five-identity runtime-corpus gate with four byte-exact profiles, one frozen A4EE runtime attestation, simulated relocation writes, and risk-based manual retest tiers.
 * **Knowledge audit**: Promoted the engine pipeline, three-region queue layout, constructor/pass lifecycle, external result lifecycle, and known failure boundaries from scattered source and archived narratives into focused active concepts; added mandatory lookup-first knowledge preflight rules.

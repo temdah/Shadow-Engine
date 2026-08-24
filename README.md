@@ -26,10 +26,10 @@ Shadow Engine increases capacity and stability. It does not increase shadow
 distance, add headlights, replace weather, or guarantee unlimited shadows.
 
 Version 1.2.3 retains the five Global, Shev, VMPless, Asia/Miru and Complete
-Edition runtime layouts in one ASI. Its corrected 30-map capacity policy is an
-experimental candidate until it completes runtime validation. v1.2.2 is
-rejected because two internal mapping arrays were relocated with the wrong
-per-map stride, preventing shadow jobs from dispatching.
+Edition runtime layouts in one ASI. Its corrected 30-map capacity policy passed
+a frozen-candidate runtime matrix on all five layouts. v1.2.2 is rejected
+because two internal mapping arrays were relocated with the wrong per-map
+stride, preventing shadow jobs from dispatching.
 
 ## Requirements
 

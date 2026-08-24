@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.3 (experimental)
+## 1.2.3
 
 ### Fixed
 
@@ -15,8 +15,20 @@
 
 - Added compile-time mapping-offset invariants and an exact three-stride check
   across all 46 relocated references.
+- Added a five-profile offline runtime-corpus gate with 62 byte-exact
+  capacity-site checks on four layouts and a frozen successful A4EE runtime
+  attestation.
 - Produced byte-identical warning-clean TinyCC builds and passed transaction
-  fault injection. Runtime validation remains pending.
+  fault injection.
+- The exact frozen ASI passed Global/04DF, Shev/A4EE, VMPless, Complete Edition,
+  and Asia/Miru. All five manual outcomes matched the offline compatibility
+  prediction without a crash or baseline regional regression.
+
+### Known limit
+
+- Extreme pressure can still cause rapid dynamic spotlight/moon-shadow
+  eviction and reacquisition when manager admission saturates. v1.2.3 greatly
+  shortens the previous prolonged loss but does not claim unlimited shadows.
 
 ## 1.2.2 (rejected)
 

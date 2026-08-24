@@ -75,8 +75,19 @@ LOD behavior. The regional runtime corpus gate passes four profiles with 62
 byte-exact checks each and couples packed A4EE to its frozen successful runtime
 attestation. Under the risk-based policy, this satisfies the shared-capacity
 candidate gate because profiles, signatures, resolver, preflight, hook set, and
-transaction topology are unchanged. v1.2.1 remains the accepted published
-fallback until v1.2.3 is deliberately promoted.
+transaction topology are unchanged.
+
+A subsequent frozen-candidate calibration matrix passed all five supported
+profiles and matched the offline compatibility prediction. This empirically
+supports the reduced future retest tier for shared policy changes. v1.2.1
+remains the accepted published fallback only until v1.2.3 is deliberately
+promoted.
+
+v1.2.3 greatly reduces the original prolonged extreme-load shadow loss but does
+not eliminate all pressure artifacts. Complete Edition reproduced rapid
+spotlight/moon-shadow eviction and reacquisition at 26 manager admissions while
+only 26/30 faces were occupied. The next investigation therefore owns manager
+admission/residency stability rather than another blind physical-map increase.
 
 Corrected candidate source commit: `f31769d`. Reproducible ASI SHA-256:
 `5510E9F34F62DD61F6C49E4F946664A9241A743C9E989B98DABF335506ED4CC2`.
