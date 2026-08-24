@@ -13,15 +13,17 @@ The module order is a contract:
    or explicit RVA strategy, helper RVAs and per-profile detour prologue.
 3. `10_runtime_primitives.inc` owns logging, memory checks, atomic helpers and
    generic detour installation.
-4. `20_manager_owner_profile.inc` owns the manager profile and owner-vector
+4. `15_patch_transaction.inc` owns journaled executable writes, relay/trampoline
+   allocations, reverse-order rollback and transaction commit.
+5. `20_manager_owner_profile.inc` owns the manager profile and owner-vector
    pre-reservation.
-5. `30_renderer_queue_diagnostics.inc` owns whole-record face admission, queue
+6. `30_renderer_queue_diagnostics.inc` owns whole-record face admission, queue
    validation, residency sampling and F8/F9 queue capture.
-6. `40_external_slice_results.inc` owns generation-safe external SliceExecute
+7. `40_external_slice_results.inc` owns generation-safe external SliceExecute
    result storage, consumption, release and bounded F8/F9 diagnostics.
-7. `60_engine_expansion.inc` owns maps, passes, queue layout, routing relays and
+8. `60_engine_expansion.inc` owns maps, passes, queue layout, routing relays and
    scheduler writes.
-8. `70_bootstrap_orchestration.inc` owns signature preflight, phased startup and
+9. `70_bootstrap_orchestration.inc` owns signature preflight, phased startup and
    exported entry points.
 
 Later modules may call earlier helpers and the forward-declared hook entry

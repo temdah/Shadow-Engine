@@ -71,3 +71,11 @@ python -B tests\validate_refactor.py `
   --baseline <tested-v1.2.0-source> `
   --candidate .
 ```
+
+The rollback layer also has a standalone native fault-injection harness. It
+forces failure at each write position and verifies reverse-order byte restore,
+published-pointer clearing, allocation release and successful commit:
+
+```powershell
+.\tests\test_patch_transaction.ps1 -CompilerPath <path-to-tcc.exe>
+```

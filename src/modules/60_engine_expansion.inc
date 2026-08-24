@@ -30,17 +30,13 @@ static int install_inline_relay(uint64_t rva,const unsigned char *expected,
     unsigned char *target=ENGINE_ADDRESS(rva);
     if(overwrite<14 || overwrite>sizeof(patch)) return 0;
     if(memcmp(target,expected,overwrite)!=0) return 0;
-    relay=(unsigned char *)VirtualAlloc(NULL,body_size+14,
-        MEM_COMMIT|MEM_RESERVE,PAGE_EXECUTE_READWRITE);
+    relay=(unsigned char *)patch_allocate(body_size+14,NULL);
     if(!relay) return 0;
     memcpy(relay,body,body_size);
     emit_absolute_jump(relay+body_size,target+overwrite);
     memset(patch,0x90,overwrite);
     emit_absolute_jump(patch,relay);
-    if(!write_bytes(target,patch,overwrite)) {
-        VirtualFree(relay,0,MEM_RELEASE);
-        return 0;
-    }
+    if(!patch_write_bytes(target,patch,overwrite)) return 0;
     return 1;
 }
 static int embedded_dword_offset(const unsigned char *instruction,
@@ -99,13 +95,13 @@ static int apply_queue_layout(void)
         int offset=embedded_dword_offset(
             ENGINE_ADDRESS(g_tail_patches[i].instruction_rva),
             g_tail_patches[i].old_value);
-        if(offset<0 || !write_bytes(
+        if(offset<0 || !patch_write_bytes(
             ENGINE_ADDRESS(g_tail_patches[i].instruction_rva)+offset,
             &g_tail_patches[i].new_value,4)) return 0;
     }
-    return write_bytes(ENGINE_ADDRESS(QUEUE_COUNT_INIT_RVA),count,sizeof(count)) &&
-           write_bytes(ENGINE_ADDRESS(QUEUE_CLEAR_A_SIZE_RVA),clear_a,sizeof(clear_a)) &&
-           write_bytes(ENGINE_ADDRESS(QUEUE_CLEAR_B_SIZE_RVA),clear_b,sizeof(clear_b));
+    return patch_write_bytes(ENGINE_ADDRESS(QUEUE_COUNT_INIT_RVA),count,sizeof(count)) &&
+           patch_write_bytes(ENGINE_ADDRESS(QUEUE_CLEAR_A_SIZE_RVA),clear_a,sizeof(clear_a)) &&
+           patch_write_bytes(ENGINE_ADDRESS(QUEUE_CLEAR_B_SIZE_RVA),clear_b,sizeof(clear_b));
 }
 
 static int validate_slice_result_store_sites(uint32_t result_pointer_offset)
@@ -311,11 +307,11 @@ static int apply_v1216_scheduler(void)
         0xC7,0x85,0xB4,0,0,0,0x10,0,0,0};
     static const unsigned char scheduler_floor[]={0xBA,0x10,0,0,0};
     static const unsigned char scheduler_upper[]={0x41,0xB8,0x10,0,0,0};
-    return write_bytes(ENGINE_ADDRESS(SCHEDULER_INIT_RVA),scheduler_init,
+    return patch_write_bytes(ENGINE_ADDRESS(SCHEDULER_INIT_RVA),scheduler_init,
                        sizeof(scheduler_init)) &&
-           write_bytes(ENGINE_ADDRESS(SCHEDULER_FLOOR_RVA),scheduler_floor,
+           patch_write_bytes(ENGINE_ADDRESS(SCHEDULER_FLOOR_RVA),scheduler_floor,
                        sizeof(scheduler_floor)) &&
-           write_bytes(ENGINE_ADDRESS(SCHEDULER_UPPER_RVA),scheduler_upper,
+           patch_write_bytes(ENGINE_ADDRESS(SCHEDULER_UPPER_RVA),scheduler_upper,
                        sizeof(scheduler_upper));
 }
 
@@ -401,7 +397,7 @@ static int install_map_range_loop_extension(void)
 
     if(!install_inline_relay(MAP_LOOP_STORE_RVA,expected_store,
                              sizeof(expected_store),body,n)) return 0;
-    if(!write_bytes(ENGINE_ADDRESS(MAP_LOOP_BOUND_RVA),replacement_bound,
+    if(!patch_write_bytes(ENGINE_ADDRESS(MAP_LOOP_BOUND_RVA),replacement_bound,
                     sizeof(replacement_bound))) return 0;
     return 1;
 }

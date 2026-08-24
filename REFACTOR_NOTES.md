@@ -19,6 +19,10 @@ Completed structural slice:
 - Split early bootstrap into an explicit read-only patch-plan preparation phase
   and a mutation-only commit phase; deferred hooks require the same plan.
 - Added a baseline comparison test plus the private 88-check Asia capture gate.
+- Added separate early and deferred patch transactions. Every executable write
+  is journaled before mutation; failures restore bytes in reverse order, clear
+  published trampoline pointers and release transaction allocations.
+- Added a standalone native fault-injection harness for rollback and commit.
 
 Deliberately unchanged:
 
@@ -30,7 +34,10 @@ Deliberately unchanged:
 
 Remaining architectural debt:
 
-- Hook commit is still phased and lacks rollback after mutation begins.
+- Early construction and deferred downstream installation remain separate
+  lifecycle phases; each phase is now internally transactional. Engine objects
+  created between phases are deliberately not treated as reversible code
+  mutations.
 - Active subsystem state is still mostly file-scope static state.
 - The unity build remains required until a runtime-tested interface boundary is
   available.

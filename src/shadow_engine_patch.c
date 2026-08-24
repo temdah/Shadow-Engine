@@ -9,6 +9,7 @@
 #include "modules/00_shared_config_state.inc"
 #include "modules/05_runtime_profiles.inc"
 #include "modules/10_runtime_primitives.inc"
+#include "modules/15_patch_transaction.inc"
 #include "modules/20_manager_owner_profile.inc"
 #include "modules/30_renderer_queue_diagnostics.inc"
 #include "modules/40_external_slice_results.inc"

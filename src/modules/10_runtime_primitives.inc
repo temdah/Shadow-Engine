@@ -93,7 +93,7 @@ static double elapsed_ms(LARGE_INTEGER value)
            (double)g_snapshot.frequency.QuadPart;
 }
 
-static int write_bytes(unsigned char *target,const void *data,size_t size)
+static int raw_write_bytes(unsigned char *target,const void *data,size_t size)
 {
     DWORD old_protect,ignored;
     if(!VirtualProtect(target,size,PAGE_EXECUTE_READWRITE,&old_protect)) return 0;
@@ -102,6 +102,9 @@ static int write_bytes(unsigned char *target,const void *data,size_t size)
     FlushInstructionCache(GetCurrentProcess(),target,size);
     return 1;
 }
+
+static void *patch_allocate(size_t size,void **published_pointer);
+static int patch_write_bytes(unsigned char *target,const void *data,size_t size);
 
 static int readable_memory(const void *address,size_t size)
 {
@@ -126,17 +129,13 @@ static int install_detour(unsigned char *target,const unsigned char *expected,
     unsigned char patch[32];
     if(patch_size<14 || patch_size>sizeof(patch)) return 0;
     if(memcmp(target,expected,patch_size)!=0) return 0;
-    trampoline=(unsigned char *)VirtualAlloc(NULL,patch_size+14,
-        MEM_COMMIT|MEM_RESERVE,PAGE_EXECUTE_READWRITE);
+    trampoline=(unsigned char *)patch_allocate(patch_size+14,original);
     if(!trampoline) return 0;
     memcpy(trampoline,target,patch_size);
     emit_absolute_jump(trampoline+patch_size,target+patch_size);
     memset(patch,0x90,patch_size);
     emit_absolute_jump(patch,hook);
-    if(!write_bytes(target,patch,patch_size)) {
-        VirtualFree(trampoline,0,MEM_RELEASE);
-        return 0;
-    }
+    if(!patch_write_bytes(target,patch,patch_size)) return 0;
     *original=trampoline;
     return 1;
 }

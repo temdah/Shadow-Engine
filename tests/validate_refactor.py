@@ -131,6 +131,7 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
 
     aggregator = candidate_files["src/shadow_engine_patch.c"]
     assert '"modules/05_runtime_profiles.inc"' in aggregator
+    assert '"modules/15_patch_transaction.inc"' in aggregator
     assert '"modules/40_external_slice_results.inc"' in aggregator
     for retired in RETIRED_MODULES:
         assert retired not in aggregator and not any(path.endswith(retired) for path in candidate_files), (
@@ -139,6 +140,24 @@ def validate(baseline: pathlib.Path, candidate: pathlib.Path) -> list[str]:
     assert not re.search(r"\bg_runtime_profile\b", candidate_source)
     assert not re.search(r"runtime_profile_id\(\)\s*==\s*5", candidate_source)
     checks.append("architecture: no profile-number branch or retired module")
+
+    transaction_path = "src/modules/15_patch_transaction.inc"
+    primitives_path = "src/modules/10_runtime_primitives.inc"
+    bootstrap_path = "src/modules/70_bootstrap_orchestration.inc"
+    for path, source in candidate_files.items():
+        if path != transaction_path:
+            assert "VirtualAlloc(" not in source, (
+                f"executable allocation bypasses transaction: {path}"
+            )
+        if path not in {transaction_path, primitives_path}:
+            assert "raw_write_bytes(" not in source, (
+                f"executable write bypasses transaction: {path}"
+            )
+    bootstrap = candidate_files[bootstrap_path]
+    assert bootstrap.count("patch_transaction_begin(") == 2
+    assert bootstrap.count("patch_transaction_commit(") == 2
+    assert bootstrap.count("patch_transaction_rollback(") == 2
+    checks.append("transactions: all executable writes/allocations routed; two phased rollbacks")
     return checks
 
 

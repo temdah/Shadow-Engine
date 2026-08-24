@@ -6,17 +6,13 @@ static int install_manager_detour(void)
     unsigned char *trampoline;
     unsigned char patch[14];
     if(memcmp(target,g_manager_prologue,sizeof(g_manager_prologue))!=0) return 0;
-    trampoline=(unsigned char *)VirtualAlloc(NULL,32,
-        MEM_COMMIT|MEM_RESERVE,PAGE_EXECUTE_READWRITE);
+    trampoline=(unsigned char *)patch_allocate(32,(void **)&g_original_manager);
     if(!trampoline) return 0;
     memcpy(trampoline,target+9,5);
     emit_absolute_jump(trampoline+5,target+14);
     memset(patch,0x90,sizeof(patch));
     emit_absolute_jump(patch,hooked_shadow_manager);
-    if(!write_bytes(target,patch,sizeof(patch))) {
-        VirtualFree(trampoline,0,MEM_RELEASE);
-        return 0;
-    }
+    if(!patch_write_bytes(target,patch,sizeof(patch))) return 0;
     g_original_manager=(ShadowManagerFn)trampoline;
     return 1;
 }
