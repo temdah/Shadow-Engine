@@ -13,9 +13,6 @@ cmake_install.cmake
 !/AGENTS.md
 handoff.md
 **/handoff.md
-docs/okf/continuation-playbook.md
-docs/okf/project-status.md
-docs/okf/workspace-reference.md
 
 # Local build and packaging output
 build/
