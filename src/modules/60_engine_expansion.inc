@@ -21,24 +21,6 @@ static void snapshot_native_handles(void *manager)
     InterlockedExchange(&g_shadow_engine.resources.native_nonzero_handles,nonzero);
     InterlockedExchange(&g_shadow_engine.resources.native_distinct_handles,distinct);
 }
-static int install_inline_relay(uint64_t rva,const unsigned char *expected,
-                                size_t overwrite,const unsigned char *body,
-                                size_t body_size)
-{
-    unsigned char *relay;
-    unsigned char patch[32];
-    unsigned char *target=ENGINE_ADDRESS(rva);
-    if(overwrite<14 || overwrite>sizeof(patch)) return 0;
-    if(memcmp(target,expected,overwrite)!=0) return 0;
-    relay=(unsigned char *)patch_allocate(body_size+14,NULL);
-    if(!relay) return 0;
-    memcpy(relay,body,body_size);
-    emit_absolute_jump(relay+body_size,target+overwrite);
-    memset(patch,0x90,overwrite);
-    emit_absolute_jump(patch,relay);
-    if(!patch_write_bytes(target,patch,overwrite)) return 0;
-    return 1;
-}
 static int embedded_dword_offset(const unsigned char *instruction,
                                  uint32_t value)
 {
@@ -154,6 +136,7 @@ static int install_slice_result_bounds_relays(void)
     };
     size_t n,external_branch,external_label;
     uint32_t result_offset=RENDER_QUEUE_RESULT_OFFSET;
+    uint32_t resource_context_offset=RENDER_QUEUE_RESOURCE_CONTEXT_OFFSET;
     uint64_t external_store=(uint64_t)(uintptr_t)store_external_slice_result;
     unsigned char *epilogue=ENGINE_ADDRESS(SLICE_RESULT_EPILOGUE_RVA);
 
@@ -183,6 +166,9 @@ static int install_slice_result_bounds_relays(void)
     body[n++]=0x4C; body[n++]=0x8B; body[n++]=0x85;
     body[n++]=0xA0; body[n++]=0x20; body[n++]=0; body[n++]=0;
                                            /* mov r8,[rbp+20a0] */
+    body[n++]=0x4D; body[n++]=0x8B; body[n++]=0x8D;
+    memcpy(body+n,&resource_context_offset,4); n+=4;
+                                           /* mov r9,[r13+resource_context_offset] */
     body[n++]=0x48; body[n++]=0xB8;
     memcpy(body+n,&external_store,8); n+=8; /* mov rax,helper */
     body[n++]=0xFF; body[n++]=0xD0;         /* call rax */
@@ -209,6 +195,9 @@ static int install_slice_result_bounds_relays(void)
         (external_label-(external_branch+1));
     body[n++]=0x48; body[n++]=0x8B; body[n++]=0xC8; /* mov rcx,rax */
     body[n++]=0x45; body[n++]=0x33; body[n++]=0xC0; /* xor r8d,r8d */
+    body[n++]=0x4D; body[n++]=0x8B; body[n++]=0x8D;
+    memcpy(body+n,&resource_context_offset,4); n+=4;
+                                           /* mov r9,[r13+resource_context_offset] */
     body[n++]=0x48; body[n++]=0xB8;
     memcpy(body+n,&external_store,8); n+=8; /* mov rax,helper */
     body[n++]=0xFF; body[n++]=0xD0;         /* call rax */
@@ -650,21 +639,22 @@ static int validate_downstream_sites(unsigned char *base)
         &frame_builder_prologue_size);
     return validate_queue_layout() &&
            validate_slice_result_store_sites(0x27170U) &&
+           validate_frame_graph_pre_finalizer() &&
            validate_handle_relays() &&
            validate_pass_index_relays() && validate_v1216_scheduler() &&
            memcmp(ENGINE_ADDRESS(SHADOW_MANAGER_RVA),g_manager_prologue,
                   sizeof(g_manager_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RENDER_QUEUE_PROCESS_RVA),g_renderer_queue_prologue,
                   sizeof(g_renderer_queue_prologue))==0 &&
+           memcmp(ENGINE_ADDRESS(SHADOW_FACE_SCHEDULER_RVA),
+                  g_shadow_face_scheduler_prologue,
+                  sizeof(g_shadow_face_scheduler_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(FACE_COST_READER_RVA),g_face_cost_reader_prologue,
                   sizeof(g_face_cost_reader_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA),g_resource_wrapper_prologue,
                   sizeof(g_resource_wrapper_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(FRAME_BUILDER_RVA),frame_builder_prologue,
                   frame_builder_prologue_size)==0 &&
-           memcmp(ENGINE_ADDRESS(POST_CALL_OBJECT_RENDERERS_RVA),
-                  g_post_call_object_renderers_prologue,
-                  sizeof(g_post_call_object_renderers_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RENDER_RECORD_RELEASE_RVA),
                   g_render_record_release_prologue,
                   sizeof(g_render_record_release_prologue))==0 &&
@@ -692,21 +682,22 @@ static int validate_deferred_sites_after_early_queue(unsigned char *base)
         &frame_builder_prologue_size);
     return validate_queue_layout_applied() &&
            validate_slice_result_store_sites(RENDER_QUEUE_RESULT_OFFSET) &&
+           validate_frame_graph_pre_finalizer() &&
            validate_handle_relays() &&
            validate_pass_index_relays() && validate_v1216_scheduler() &&
            memcmp(ENGINE_ADDRESS(SHADOW_MANAGER_RVA),g_manager_prologue,
                   sizeof(g_manager_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RENDER_QUEUE_PROCESS_RVA),g_renderer_queue_prologue,
                   sizeof(g_renderer_queue_prologue))==0 &&
+           memcmp(ENGINE_ADDRESS(SHADOW_FACE_SCHEDULER_RVA),
+                  g_shadow_face_scheduler_prologue,
+                  sizeof(g_shadow_face_scheduler_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(FACE_COST_READER_RVA),g_face_cost_reader_prologue,
                   sizeof(g_face_cost_reader_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA),g_resource_wrapper_prologue,
                   sizeof(g_resource_wrapper_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(FRAME_BUILDER_RVA),frame_builder_prologue,
                   frame_builder_prologue_size)==0 &&
-           memcmp(ENGINE_ADDRESS(POST_CALL_OBJECT_RENDERERS_RVA),
-                  g_post_call_object_renderers_prologue,
-                  sizeof(g_post_call_object_renderers_prologue))==0 &&
            memcmp(ENGINE_ADDRESS(RENDER_RECORD_RELEASE_RVA),
                   g_render_record_release_prologue,
                   sizeof(g_render_record_release_prologue))==0 &&

@@ -1,5 +1,7 @@
 /* Module 20: shadow-manager detour, B4/A8 profile application, and owner-vector
  * pre-reservation/invariant checks. */
+#include "../internal/overhead_probe.h"
+#include "../internal/detail_window.h"
 static int install_manager_detour(void)
 {
     unsigned char *target=ENGINE_ADDRESS(SHADOW_MANAGER_RVA);
@@ -152,25 +154,43 @@ static int prepare_owner_vector_before_admission(void *manager,LONG call)
 }
 
 static void __fastcall hooked_shadow_manager(void *manager,void *candidates,
-    uint32_t candidate_count,void *bindings,void *context)
+    uint32_t candidate_count,void *bindings,void *context,void *view_position,
+    void *call_context)
 {
-    LONG call=InterlockedIncrement(&g_shadow_engine.renderer.manager_calls);
-    if(!candidates) return;
+    OVERHEAD_BEGIN(manager_timing,OH_MANAGER_PATCH);
+    LONG admission_epoch=detail_window_epoch();
+    LONG call;
+    VehicleCaptureTicket vehicle_capture;
+    VehicleLimiterChain vehicle_limiter;
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    int workload_ticket;
+    WorkloadTimingTicket workload_timing={0};
+    PopulationTicket population_ticket={0};
+#endif
+    /* TinyCC's local InterlockedIncrement return has historically collapsed to
+     * one while the destination still advanced. Keep the atomic side effect,
+     * then explicitly reread the diagnostic identity used across modules. */
+    atomic_add_long(&g_shadow_engine.renderer.manager_calls,1);
+    call=InterlockedCompareExchange(&g_shadow_engine.renderer.manager_calls,0,0);
+    if(!candidates) { OVERHEAD_END(manager_timing); return; }
     if(InterlockedCompareExchange(&g_shadow_engine.renderer.profile_state,1,0)==0) {
         uint32_t before_a8=manager ?
             *(uint32_t *)((unsigned char *)manager+0xA8) : 0;
         uint32_t before_b4=manager ?
             *(uint32_t *)((unsigned char *)manager+0xB4) : 0;
+        OVERHEAD_PAUSE(manager_timing);
         g_shadow_engine.hooks.profile_callback(manager);
+        OVERHEAD_RESUME(manager_timing);
         InterlockedExchange(&g_shadow_engine.renderer.observed_cache_a8,
             manager ? (LONG)*(uint32_t *)((unsigned char *)manager+0xA8) : -1);
         InterlockedExchange(&g_shadow_engine.renderer.observed_scheduler_b4,
             manager ? (LONG)*(uint32_t *)((unsigned char *)manager+0xB4) : -1);
-        append_log("STAGE_E_PROFILE_INITIALIZED manager=%p call=%ld beforeA8=%u beforeB4=%u afterA8=%ld afterB4=%ld callbackRva=0x308A90 fullCandidatePassthrough=1 filtering=0 tracing=0",
+        append_log("STAGE_E_PROFILE_INITIALIZED manager=%p call=%ld beforeA8=%u beforeB4=%u afterA8=%ld afterB4=%ld callbackRva=0x308A90 exactVehicleSpotlight3Filtering=nearestPrimaryPlusTransition2 worldUnknownFailOpen=1 vehicleQualityMaxDimension=2048 policePriority=0 tracing=bounded",
             manager,(long)call,before_a8,before_b4,
             (long)g_shadow_engine.renderer.observed_cache_a8,(long)g_shadow_engine.renderer.observed_scheduler_b4);
         if(manager && !prepare_owner_vector_before_admission(manager,call)) {
             InterlockedExchange(&g_shadow_engine.renderer.profile_state,2);
+            OVERHEAD_END(manager_timing);
             return;
         }
         InterlockedExchange(&g_shadow_engine.renderer.profile_state,2);
@@ -197,16 +217,79 @@ static void __fastcall hooked_shadow_manager(void *manager,void *candidates,
                     (long)call,live_data,live_size,
                     *(uint32_t *)(manager_bytes+0xA4),live_capacity,
                     TARGET_CACHE_A8);
+            OVERHEAD_END(manager_timing);
             return;
         } else {
-            if(!prepare_owner_vector_before_admission(manager,call)) return;
+            if(!prepare_owner_vector_before_admission(manager,call)) {
+                OVERHEAD_END(manager_timing); return;
+            }
         }
     }
+    OVERHEAD_BEGIN(capture_begin_timing,OH_CAPTURE_OBSERVER);
+    vehicle_capture=begin_vehicle_candidate_sample(candidates,candidate_count,call);
+    vehicle_capture_phase(vehicle_capture,0);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    workload_ticket=workload_manager_begin(candidates,candidate_count,call);
+    population_ticket=population_manager_begin(manager,candidates,candidate_count,
+        context,call_context,call);
+#endif
+    OVERHEAD_END(capture_begin_timing);
+    OVERHEAD_BEGIN(limiter_timing,OH_LIMITER_PREPARE);
+    prepare_vehicle_limiter_chain(&vehicle_limiter,candidates,candidate_count,call,
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        workload_ticket
+#else
+        0
+#endif
+    );
+    OVERHEAD_END(limiter_timing);
+    OVERHEAD_BEGIN(capture_prepare_timing,OH_CAPTURE_OBSERVER);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    workload_timing=workload_reserve_manager(workload_ticket);
+    workload_manager_end(workload_ticket,&vehicle_limiter);
+    population_manager_prepared(population_ticket,&vehicle_limiter);
+#endif
+    vehicle_capture_phase(vehicle_capture,1);
+    OVERHEAD_END(capture_prepare_timing);
     {
         void *owner_base_before=manager ?
             *(void **)((unsigned char *)manager+0x98) : NULL;
-        g_shadow_engine.hooks.original_manager(manager,candidates,candidate_count,bindings,context);
-        capture_manager_admission_pressure(manager,candidate_count,bindings);
+        OVERHEAD_PAUSE(manager_timing);
+        OVERHEAD_BEGIN(native_manager_timing,OH_MANAGER_NATIVE);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        workload_timing_start(&workload_timing);
+#endif
+        g_shadow_engine.hooks.original_manager(manager,vehicle_limiter.head,
+            vehicle_limiter.count,bindings,context,view_position,call_context);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        workload_timing_stop(&workload_timing,0);
+#endif
+        OVERHEAD_END(native_manager_timing);
+        OVERHEAD_RESUME(manager_timing);
+        vehicle_capture_phase(vehicle_capture,2);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        workload_timing_start(&workload_timing);
+#endif
+        OVERHEAD_BEGIN(restore_timing,OH_LIMITER_RESTORE);
+        restore_vehicle_limiter_chain(&vehicle_limiter);
+        OVERHEAD_END(restore_timing);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        workload_timing_stop(&workload_timing,1);
+        workload_timing_release(&workload_timing);
+#endif
+        vehicle_capture_phase(vehicle_capture,3);
+        OVERHEAD_BEGIN(capture_finish_timing,OH_CAPTURE_OBSERVER);
+        finish_vehicle_candidate_sample(vehicle_capture,bindings,&vehicle_limiter);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        population_manager_end(population_ticket,manager,bindings);
+#endif
+        OVERHEAD_END(capture_finish_timing);
+        OVERHEAD_BEGIN(admission_timing,OH_MANAGER_ADMISSION);
+        if(detail_window_enter(admission_epoch,DETAIL_WINDOW_ADMISSION)) {
+            capture_manager_admission_pressure(manager,candidate_count,bindings);
+            detail_window_leave();
+        }
+        OVERHEAD_END(admission_timing);
         if(manager && owner_base_before!=*(void **)((unsigned char *)manager+0x98)) {
             InterlockedIncrement(&g_shadow_engine.renderer.owner_base_changed_during_manager);
             InterlockedExchange(&g_shadow_engine.renderer.owner_reserve_fail_closed,1);
@@ -234,4 +317,5 @@ static void __fastcall hooked_shadow_manager(void *manager,void *candidates,
                 OWNER_VECTOR_RESERVE_CAPACITY);
         }
     }
+    OVERHEAD_END(manager_timing);
 }

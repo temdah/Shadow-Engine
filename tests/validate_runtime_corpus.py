@@ -54,6 +54,7 @@ PROFILES = {
 }
 
 INLINE_SIGNATURES = {
+    0x002D6070: "48896C2418574154415541564157",
     0x002E2236: "BE10000000",
     0x00306ECD: "41B844000000",
     0x00306EEF: "448D4244",
@@ -133,7 +134,7 @@ def parse_asia_map(profile_source: str) -> dict[int, int]:
     pairs = [(int(a, 16), int(b, 16)) for a, b in re.findall(
         r"\{\s*0x([0-9A-Fa-f]+)ULL,\s*0x([0-9A-Fa-f]+)ULL\s*\}",
         array_block(profile_source, "g_asia_rva_map"))]
-    assert len(pairs) == 77 and pairs == sorted(pairs) and len(dict(pairs)) == 77
+    assert len(pairs) == 80 and pairs == sorted(pairs) and len(dict(pairs)) == 80
     return dict(pairs)
 
 
@@ -172,8 +173,32 @@ def manifest_records(path: pathlib.Path) -> dict[str, dict]:
     return by_hash
 
 
+def validate_intersection(profile: Profile, image: Image, asia_map: dict[int, int]) -> int:
+    # Independent disassembly findings, not expectations parsed from candidate.
+    targets = {"supported-04DF": 0x430A80, "vmpless-1.06": 0x976800,
+               "complete-edition-1.06.329": 0x1DBCE90,
+               "asia-miru-1.06.329": 0x9A5CF0}
+    recovered = []
+    for supported, displacement, field in ((0x3DDD9C,12,0x100),
+                                         (0x3DDFC0,0,0xF8),
+                                         (0x3DE059,4,0x110)):
+        ret = resolve(profile,supported,asia_map)
+        call = image.read(ret-5,5)
+        assert call[0] == 0xE8, f"{profile.name}: lookup is not CALL rel32"
+        recovered.append(ret + struct.unpack_from("<i",call,1)[0])
+        store = bytes.fromhex("498985" if profile.explicit else "498987") + struct.pack("<I",field)
+        assert image.read(ret+displacement,7) == store, f"{profile.name}: lookup store differs"
+    assert len(set(recovered)) == 1, f"{profile.name}: lookup targets disagree"
+    if profile.name in targets:
+        assert recovered[0] == targets[profile.name], f"{profile.name}: lookup target differs"
+    prologue = bytes.fromhex("48895C240848897424188954241057" if profile.explicit
+                            else "48895C240848896C24184889742420")
+    assert image.read(recovered[0],15) == prologue, f"{profile.name}: lookup prologue differs"
+    return 7  # three call/store pairs plus shared target/prologue
+
+
 def validate_exact(profile: Profile, image: Image, asia_map: dict[int, int],
-                   tails: list[tuple[int, int, int]]) -> dict:
+                   tails: list[tuple[int, int, int]], intersection: bool = False) -> dict:
     checks = 0
     for supported, signature_hex in INLINE_SIGNATURES.items():
         signature = bytes.fromhex(signature_hex)
@@ -201,6 +226,20 @@ def validate_exact(profile: Profile, image: Image, asia_map: dict[int, int],
     assert loop[19] == 0xE8 and loop[24:27] == bytes.fromhex("0F28F8")
     checks += 1
 
+    pre_finalizer=resolve(profile,0x003E19E3,asia_map)
+    tail=image.read(pre_finalizer,17)
+    assert tail[:12]==bytes.fromhex(
+        "440FB74568488B5560488BCB"), (
+        f"{profile.name} frame-graph tail prefix mismatch: "
+        f"{tail.hex().upper()}")
+    assert tail[12]==0xE8, f"{profile.name} frame-graph finalizer is not a call"
+    relative=struct.unpack_from("<i",tail,13)[0]
+    assert pre_finalizer+17+relative==resolve(
+        profile,0x003E0E70,asia_map), profile.name
+    checks += 1
+
+    if intersection:
+        checks += validate_intersection(profile,image,asia_map)
     return {"mode": "byte-exact", "checks": checks, "tailWritesSimulated": len(tails)}
 
 
@@ -225,6 +264,8 @@ def main() -> int:
     parser.add_argument("--asia-runtime-image", type=pathlib.Path, required=True)
     parser.add_argument("--a4ee-attestation-log", type=pathlib.Path)
     parser.add_argument("--a4ee-runtime-image", type=pathlib.Path)
+    parser.add_argument("--lifecycle-hotfix", action="store_true")
+    parser.add_argument("--intersection-diagnostic", action="store_true")
     parser.add_argument("--output", type=pathlib.Path)
     args = parser.parse_args()
 
@@ -263,22 +304,36 @@ def main() -> int:
                 image = Image(args.a4ee_runtime_image, mapped=True)
             else:
                 assert args.a4ee_attestation_log, "A4EE needs a mapped image or frozen attestation log"
-                results[profile.name] = validate_a4ee_attestation(args.a4ee_attestation_log)
+                attestation=validate_a4ee_attestation(args.a4ee_attestation_log)
+                if args.lifecycle_hotfix or args.intersection_diagnostic:
+                    attestation["mode"]="manual-runtime-required"
+                    attestation["reason"]=(
+                        "new frame-graph pre-finalizer boundary is cluster-derived "
+                        "but absent from the frozen attestation; new intersection "
+                        "lookup observer also requires current runtime validation")
+                results[profile.name] = attestation
                 continue
         else:
             image = raw
         if image.mapped:
             assert len(image.data) >= profile.image_size
-        results[profile.name] = validate_exact(profile, image, asia_map, tails)
+        results[profile.name] = validate_exact(profile, image, asia_map, tails,
+                                             args.intersection_diagnostic)
 
     exact = sum(result["mode"] == "byte-exact" for result in results.values())
-    attested = len(results) - exact
+    attested = sum(
+        result["mode"] == "frozen-runtime-attestation"
+        for result in results.values())
+    manual = sum(
+        result["mode"] == "manual-runtime-required"
+        for result in results.values())
     output = {
         "schemaVersion": 1,
-        "status": "pass",
+        "status": "manual-required" if manual else "pass",
         "profiles": results,
         "byteExactProfiles": exact,
         "attestedProfiles": attested,
+        "manualRequiredProfiles": manual,
         "tailRelocations": len(tails),
         "asiaMappings": len(asia_map),
         "originalMaps": original_maps,
@@ -289,12 +344,13 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
     print(
-        f"PASS profiles=5 byteExact={exact} attested={attested} "
+        f"{'MANUAL_REQUIRED' if manual else 'PASS'} profiles=5 "
+        f"byteExact={exact} attested={attested} manualRequired={manual} "
         f"maps={original_maps}+{extra_maps}={total_maps} "
         f"tails={len(tails)} asiaMappings={len(asia_map)}")
     for name, result in results.items():
         print(f"  {name}: {result['mode']} checks={result['checks']}")
-    return 0
+    return 2 if manual else 0
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ typedef struct ShadowPatchPlan {
     const RuntimeProfile *profile;
     const unsigned char *frame_builder_prologue;
     size_t frame_builder_prologue_size;
+    int lua_frame_enabled;
     int prepared;
 } ShadowPatchPlan;
 
@@ -52,7 +53,14 @@ static int prepare_early_patch_plan(HMODULE disrupt,ShadowPatchPlan *plan)
         append_log("STAGE_E_ABORT signature=deferred_downstream expectedBuildMismatch=1 noEngineMutation=1");
         return 0;
     }
-    append_log("STAGE_M_PREFLIGHT_COMPLETE signatures=resource,pass,mapLoop,earlyQueueLayout,sliceResultStores,deferredHandleConsumers,deferredPassIndexConsumers,deferredV1216Scheduler,deferredShadowManager,rendererQueue,faceCostReader,resourceWrapperDirect,renderRecordConstructor,frameBuilder,postCallObjectRenderers,renderRecordRelease requiredPassMaxKey=0x%04X requiredPassSlots=%u passTableVerification=readOnly diagnostics=minimal tailRelocations=%u noEngineMutationBeforeThisMarker=1",
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    if(!prepare_lua_frame_repair(g_runtime_state.selected,&plan->lua_frame_enabled)) return 0;
+    if(!validate_intersection_sites()) {
+        append_log("STAGE_E_ABORT signature=intersectionLookup noEngineMutation=1");
+        return 0;
+    }
+#endif
+    append_log("STAGE_M_PREFLIGHT_COMPLETE signatures=resource,pass,mapLoop,earlyQueueLayout,sliceResultStores,deferredHandleConsumers,deferredPassIndexConsumers,deferredV1216Scheduler,deferredShadowManager,rendererQueue,faceCostReader,resourceWrapperDirect,renderRecordConstructor,frameBuilder,renderRecordRelease requiredPassMaxKey=0x%04X requiredPassSlots=%u passTableVerification=readOnly diagnostics=minimal tailRelocations=%u noEngineMutationBeforeThisMarker=1",
         REQUIRED_PASS_MAX_KEY,REQUIRED_PASS_TABLE_SLOTS,
         (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])));
     plan->profile=g_runtime_state.selected;
@@ -67,6 +75,9 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
     PatchTransaction transaction;
     PatchRollbackResult rollback;
     const char *failed_step=NULL;
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    int lua_frame_enabled=plan?plan->lua_frame_enabled:0;
+#endif
     if(!plan || !plan->prepared || plan->profile!=g_runtime_state.selected) {
         append_log("STAGE_E_ABORT mutation=early_commit invalidPreparedPlan=1 noEngineMutation=1");
         return 0;
@@ -106,11 +117,22 @@ static int commit_early_patch_plan(const ShadowPatchPlan *plan)
         failed_step="register_pass";
         goto rollback_early;
     }
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    if(!apply_lua_frame_repair(plan->profile,&lua_frame_enabled)) {
+        failed_step="lua_frame_repair";
+        goto rollback_early;
+    }
+#endif
     if(!patch_transaction_commit(&transaction)) {
         failed_step="transaction_commit";
         goto rollback_early;
     }
     InterlockedExchange(&g_shadow_engine.bootstrap.hooks_installed,1);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    if(lua_frame_enabled)
+        append_log("LUA_FRAME_REPAIR_ACTIVE version=%s profile=%s sites=%u metadataByte=12 tracing=0 experimental=1 runtimeAcceptancePending=1",
+            PATCH_VERSION,plan->profile->name,(unsigned)plan->profile->lua_frame_site_count);
+#endif
     append_log("STAGE_M_EARLY_HOOKS_INSTALLED nativeLoopMaps=%u nativeManagerMaps=%u externalMaps=%u pairedExtraPasses=%u passTableAllocatorHook=0 readOnlyPassTableVerification=1 requiredPassSlots=%u earlyQueueLayout=%u renderRecordConstructorExternalState=1 diagnostics=minimal downstreamHandleRouting=0 downstreamPassRouting=0 schedulerChanged=0 managerHook=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
         TOTAL_LOCAL_MAPS,ORIGINAL_LOCAL_MAPS,EXTRA_LOCAL_MAPS,
         EXTRA_PASS_SLOT_COUNT,REQUIRED_PASS_TABLE_SLOTS,
@@ -140,7 +162,6 @@ static int install_early_construction_hooks(HMODULE disrupt)
 
 static int install_deferred_downstream(void)
 {
-    HMODULE user32;
     PatchTransaction transaction;
     PatchRollbackResult rollback;
     const char *failed_step=NULL;
@@ -161,15 +182,54 @@ static int install_deferred_downstream(void)
         InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
         return 0;
     }
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    QueryPerformanceFrequency(
+        &g_shadow_engine.completion_diagnostics.qpc_frequency);
+#endif
+    /* Optional observer: complete read-only discovery before deferred writes.
+     * Unproven profiles retain the original F10 and all existing engine gates. */
+    validate_vehicle_owner_sites();
+    InterlockedExchange(&g_shadow_engine.policy_control.quality_ready,
+        validate_vehicle_resolution_sites() && validate_vehicle_handle_link_sites());
     if(!patch_transaction_begin(&transaction,"deferred",-1)) {
         append_log("STAGE_E_DOWNSTREAM_ABORT transactionBusy=1 noDeferredMutation=1");
         InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
         return 0;
     }
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    if(!install_intersection_observer()) {
+        failed_step="intersection_lookup";
+        goto rollback_deferred;
+    }
+#endif
+    if(!install_vehicle_owner_observer()) {
+        failed_step="vehicle_owner_observer";
+        goto rollback_deferred;
+    }
+    /* Inline SliceExecute relays become callable as soon as their transaction
+     * writes land. Publish the already-preflighted native wrapper first so a
+     * completion rejected during the remaining install window can still
+     * retire its acquisition. */
+    g_shadow_engine.hooks.original_resource_wrapper=(ResourceWrapperFn)
+        ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA);
+    if(!install_frame_graph_tail_relay()) {
+        failed_step="frame_graph_tail_relay";
+        goto rollback_deferred;
+    }
     if(!install_slice_result_bounds_relays()) {
         failed_step="slice_result_bounds_relays";
         goto rollback_deferred;
     }
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    if(!install_detour(ENGINE_ADDRESS(SHADOW_FACE_SCHEDULER_RVA),
+        g_shadow_face_scheduler_prologue,
+        sizeof(g_shadow_face_scheduler_prologue),
+        hooked_shadow_face_scheduler,
+        (void **)&g_shadow_engine.hooks.original_shadow_face_scheduler)) {
+        failed_step="shadow_face_scheduler_diagnostic";
+        goto rollback_deferred;
+    }
+#endif
     if(!install_handle_relays()) {
         failed_step="handle_relays";
         goto rollback_deferred;
@@ -201,20 +261,10 @@ static int install_deferred_downstream(void)
         failed_step="face_cost_reader";
         goto rollback_deferred;
     }
-    g_shadow_engine.hooks.original_resource_wrapper=(ResourceWrapperFn)
-        ENGINE_ADDRESS(RESOURCE_WRAPPER_RVA);
     if(!install_detour(ENGINE_ADDRESS(FRAME_BUILDER_RVA),
         frame_builder_prologue,frame_builder_prologue_size,
         hooked_external_frame_builder,(void **)&g_shadow_engine.hooks.original_frame_builder)) {
         failed_step="frame_builder";
-        goto rollback_deferred;
-    }
-    if(!install_detour(ENGINE_ADDRESS(POST_CALL_OBJECT_RENDERERS_RVA),
-        g_post_call_object_renderers_prologue,
-        sizeof(g_post_call_object_renderers_prologue),
-        hooked_external_post_call_object_renderers,
-        (void **)&g_shadow_engine.hooks.original_post_call_object_renderers)) {
-        failed_step="post_call_object_renderers";
         goto rollback_deferred;
     }
     if(!install_detour(ENGINE_ADDRESS(RENDER_RECORD_RELEASE_RVA),
@@ -230,22 +280,30 @@ static int install_deferred_downstream(void)
         goto rollback_deferred;
     }
     InterlockedExchange(&g_shadow_engine.external_results.lifecycle_hooks_state,2);
-    user32=GetModuleHandleW(L"user32.dll");
-    if(!user32) user32=LoadLibraryW(L"user32.dll");
-    if(user32) g_shadow_engine.hooks.get_async_key_state=(GetAsyncKeyStateFn)
-        GetProcAddress(user32,"GetAsyncKeyState");
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    InterlockedExchange(&g_shadow_engine.completion_diagnostics.hook_state,2);
+#endif
     InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,2);
     InterlockedExchange(&g_shadow_engine.resources.routing_state,2);
     InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,2);
-    append_log("STAGE_M_DOWNSTREAM_INSTALLED afterConstructors=1 stabilizationMs=%u physicalQueueEntries=%u queueLayoutAppliedBeforeConstruction=1 physicalFaceBudget=%u wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 relocatedTailReferences=%u handleConsumers=3 passIndexConsumers=2 sliceResultBoundsRelays=2 nativeSliceResults=%u externalSliceResults=%u routedSliceIndices=%u-%u externalConsumer=postCallObjectRenderers releaseFallback=renderRecordRelease nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B schedulerInit=%u schedulerFloor=%u schedulerUpper=%u schedulerUpperRva=0x2E9C3B cacheOwnerCeiling=%u ownerVectorPhysicalReserve=%u ownerRecordStride=0x700 reserveRva=0x319160 rendererCapacityProbe=1 queueTailIntegrityProbe=1 nullFaceCostGuard=1 nativeWrapperDirectCall=1 resourceWrapperDetour=0 resourceSubmitDetour=0 renderRecordLifecycleHooks=constructor,builder,postCallObjectRenderers,release lifecycleRecordSlots=%u manualQueueCapture=%u blackKey=F8 recoveredKey=F9 repair=0 sidecars=0 taskProvenance=0 resourceTrace=0 sharedTextureTrace=0 frameGraphTrace=0 acquireHook=0 diagnostics=minimal firstManagerProfileCallback=1 fullCandidatePassthrough=1 filtering=0 limiter=0 transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+    append_log("STAGE_INTERSECTION_READY controls=ShadowEngineMenu functionKeys=disabled default=off policyChange=0");
+#endif
+    append_log("STAGE_QUALITY_READY enabled=%ld preflight=startup independentOfCapture=1",
+        (long)g_shadow_engine.policy_control.quality_ready);
+    append_log("STAGE_M_DOWNSTREAM_INSTALLED afterConstructors=1 stabilizationMs=%u physicalQueueEntries=%u queueLayoutAppliedBeforeConstruction=1 physicalFaceBudget=%u wholeRecordPriorityPrefix=1 queueCountRestoredAfterRender=1 relocatedTailReferences=%u handleConsumers=3 passIndexConsumers=2 sliceResultBoundsRelays=2 nativeSliceResults=%u externalSliceResults=%u routedSliceIndices=%u-%u externalConsumer=frameGraphPreFinalizer callsiteRva=0x%08X executeFrameGraphEntryDetour=0 rejectedNonNullCleanup=nativeWrapperExactContext nonNullStoreRva=0x2CC316 nullStoreRva=0x2CC32B shadowFaceSchedulerDiagnostic=%u schedulerDiagnosticRva=0x%08X schedulerInit=%u schedulerFloor=%u schedulerUpper=%u schedulerUpperRva=0x2E9C3B cacheOwnerCeiling=%u ownerVectorPhysicalReserve=%u lifecycleRecordSlots=%u manualQueueCapture=%u repair=0 sidecars=0 diagnostics=boundedCompletion transactionWrites=%u transactionAllocations=%u rollbackAvailableUntilCommit=1",
         DOWNSTREAM_STABILIZE_MS,PHYSICAL_QUEUE_ENTRIES,TOTAL_LOCAL_MAPS,
         (unsigned)(sizeof(g_tail_patches)/sizeof(g_tail_patches[0])),
         NATIVE_SLICE_RESULT_COUNT,EXTRA_SLICE_RESULT_COUNT,
         NATIVE_SLICE_RESULT_COUNT,TOTAL_LOCAL_MAPS-1U,
+        (unsigned)RESOLVED_ENGINE_RVA(
+            FRAME_GRAPH_PRE_FINALIZER_RVA),
+        SHADOW_ENGINE_INTERNAL_DIAGNOSTICS,
+        (unsigned)RESOLVED_ENGINE_RVA(SHADOW_FACE_SCHEDULER_RVA),
         TARGET_DYNAMIC_B4,TARGET_DYNAMIC_B4,TARGET_DYNAMIC_B4,
         TARGET_CACHE_A8,OWNER_VECTOR_RESERVE_CAPACITY,
         LIFECYCLE_RECORD_SLOTS,
-        g_shadow_engine.hooks.get_async_key_state ? 1U : 0U,
+        SHADOW_ENGINE_INTERNAL_DIAGNOSTICS,
         (unsigned)transaction.write_count,
         (unsigned)transaction.allocation_count);
     return 1;
@@ -253,11 +311,19 @@ static int install_deferred_downstream(void)
 rollback_deferred:
     rollback=patch_transaction_rollback(&transaction);
     if(rollback.failed_restores==0) {
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        rollback_intersection_observer();
+#endif
+        rollback_vehicle_owner_observer();
         g_shadow_engine.hooks.profile_callback=NULL;
         g_shadow_engine.hooks.owner_vector_reserve=NULL;
         g_shadow_engine.hooks.original_resource_wrapper=NULL;
+        g_shadow_engine.hooks.original_shadow_face_scheduler=NULL;
         InterlockedExchange(&g_shadow_engine.external_results.slice_result_guard_state,-1);
         InterlockedExchange(&g_shadow_engine.external_results.lifecycle_hooks_state,-1);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        InterlockedExchange(&g_shadow_engine.completion_diagnostics.hook_state,-1);
+#endif
         InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,-1);
         InterlockedExchange(&g_shadow_engine.resources.routing_state,-1);
         InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-1);
@@ -267,6 +333,9 @@ rollback_deferred:
          * than creating a use-after-free/null-call path. */
         InterlockedExchange(&g_shadow_engine.external_results.slice_result_guard_state,-2);
         InterlockedExchange(&g_shadow_engine.external_results.lifecycle_hooks_state,-2);
+#if SHADOW_ENGINE_INTERNAL_DIAGNOSTICS
+        InterlockedExchange(&g_shadow_engine.completion_diagnostics.hook_state,-2);
+#endif
         InterlockedExchange(&g_shadow_engine.renderer.renderer_hook_state,-2);
         InterlockedExchange(&g_shadow_engine.resources.routing_state,-2);
         InterlockedExchange(&g_shadow_engine.bootstrap.downstream_state,-2);

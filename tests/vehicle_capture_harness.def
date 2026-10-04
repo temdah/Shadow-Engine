@@ -1,0 +1,8 @@
+LIBRARY vehicle_capture_harness.exe
+
+EXPORTS
+Init
+OnBeforeEngineInit
+ShadowEngine_GetControlApiVersion
+ShadowEngine_GetVehicleHeadlightLimiterEnabled
+ShadowEngine_SetVehicleHeadlightLimiterEnabled

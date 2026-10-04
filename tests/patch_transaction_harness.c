@@ -3,6 +3,9 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
+#define SHADOW_ENGINE_INTERNAL_DIAGNOSTICS 1
+#include "../src/internal/lua_frame_sites.inc"
 
 static LONG g_raw_write_calls;
 static LONG g_fail_raw_write=-1;
@@ -116,6 +119,36 @@ static int run_failed_restore_retains_allocation(void)
     return ok;
 }
 
+static int run_lua_frame_transaction(void)
+{
+    unsigned char bytes[17][32];
+    LONG failure;
+    size_t i;
+    for(failure=-1;failure<17;failure++) {
+        PatchTransaction transaction;
+        PatchRollbackResult rollback;
+        int complete=1;
+        for(i=0;i<17;i++) memcpy(bytes[i],g_global_lua_frame_sites[i].before,g_global_lua_frame_sites[i].size);
+        if(!patch_transaction_begin(&transaction,"lua-frame-test",failure)) return 0;
+        for(i=0;i<17;i++) {
+            const LuaFramePatchSite *site=&g_global_lua_frame_sites[i];
+            if(!patch_write_bytes(bytes[i],site->after,site->size)) { complete=0; break; }
+        }
+        if(failure<0) {
+            if(!complete || !patch_transaction_commit(&transaction)) return 0;
+        } else {
+            rollback=patch_transaction_rollback(&transaction);
+            if(complete || rollback.failed_restores || rollback.restored_writes!=(size_t)failure) return 0;
+        }
+        for(i=0;i<17;i++) {
+            const LuaFramePatchSite *site=&g_global_lua_frame_sites[i];
+            if(memcmp(bytes[i],failure<0 ? site->after:site->before,site->size)) return 0;
+        }
+    }
+    printf("PASS: actual Lua frame site transaction failures=17 commit=1\n");
+    return 1;
+}
+
 int main(void)
 {
     LONG failure;
@@ -134,5 +167,6 @@ int main(void)
         return 1;
     }
     printf("PASS: transaction rollback faults=3 reverse-order=1 pointer-clear=1 allocation-release=1 failed-restore-retention=1 commit=1\n");
+    if(!run_lua_frame_transaction()) return 1;
     return 0;
 }

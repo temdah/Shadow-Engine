@@ -1,0 +1,8 @@
+LIBRARY publication_bookkeeping_harness_diag1.exe
+
+EXPORTS
+Init
+OnBeforeEngineInit
+ShadowEngine_GetControlApiVersion
+ShadowEngine_GetVehicleHeadlightLimiterEnabled
+ShadowEngine_SetVehicleHeadlightLimiterEnabled

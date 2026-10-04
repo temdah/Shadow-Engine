@@ -1,0 +1,20 @@
+{
+  "friendlyId": "shadow_engine_tools",
+  "name": "Shadow Engine Tools",
+  "author": "Tim",
+  "description": "Shadow settings, traffic controls and one staged support-report action. Requires the menu-capable Shadow Engine 2.0.92 build.",
+  "version": "2.0.94",
+  "configVersion": 1,
+  "game": "Nexus",
+  "compatibleGameModes": [
+    "campaign",
+    "dlc_solo"
+  ],
+  "packs": [],
+  "luaAutoStart": [
+    "shadow_engine_tools/entrypoint.lua"
+  ],
+  "dominoAutoStart": [],
+  "minTntVersion": "1.1.12",
+  "requiredMods": []
+}

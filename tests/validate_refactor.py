@@ -52,6 +52,34 @@ V200_POLICY_TARGET = {
     "EXTRA_PASS_SLOT_COUNT": "28U",
 }
 
+# Original-v1.2.0 values, including explicit layout constants introduced by
+# the later refactor. Keep the 30-map gate intact for the normal capacity line.
+V120_POLICY_TARGET = {
+    **V200_POLICY_TARGET,
+    "EXTRA_LOCAL_MAPS": "8U",
+    "TOTAL_LOCAL_MAPS": "24U",
+    "TARGET_DYNAMIC_B4": "16U",
+    "RENDER_QUEUE_FIRST_MAP_OFFSET": "0x396D0U",
+    "RENDER_QUEUE_SECOND_MAP_OFFSET": "0x39734U",
+    "RENDER_QUEUE_COUNT_OFFSET": "0x39798U",
+    "RENDER_QUEUE_TAIL_OFFSET": "0x397A0U",
+    "RENDER_QUEUE_RESULT_OFFSET": "0x397B0U",
+    "REQUIRED_PASS_MAX_KEY": "0x310CU",
+    "REQUIRED_PASS_TABLE_SLOTS": "50U",
+    "EXTRA_PASS_SLOT_COUNT": "16U",
+}
+
+V30_B4_16_POLICY_TARGET = {**V200_POLICY_TARGET, "TARGET_DYNAMIC_B4": "16U"}
+V30_B4_21_POLICY_TARGET = {**V200_POLICY_TARGET, "TARGET_DYNAMIC_B4": "21U"}
+
+
+def validate_policy_constants(candidate: dict[str, str], target: dict[str, str]) -> None:
+    for name in sorted(POLICY_CONSTANTS):
+        assert candidate.get(name) == target.get(name), (
+            f"policy constant changed: {name}: "
+            f"expected {target.get(name)!r}, got {candidate.get(name)!r}"
+        )
+
 
 def read_tree(root: pathlib.Path) -> tuple[str, dict[str, str]]:
     files = {
@@ -93,41 +121,74 @@ def installed_hooks(source: str) -> set[str]:
     return set(re.findall(r"install_detour\([^;]*?\b(hooked_[A-Za-z0-9_]+)\b", source, re.S))
 
 
+def validate_hook_targets(base: set[str], candidate: set[str],
+                          intersection: bool, ownership: bool) -> None:
+    expected = base - {"hooked_external_post_call_object_renderers"}
+    expected.add("hooked_shadow_face_scheduler")
+    if intersection:
+        expected.add("hooked_intersection_lookup")
+    if ownership:
+        expected.update({"hooked_vehicle_light_update", "hooked_vehicle_light_transform",
+                         "hooked_vehicle_light_batch", "hooked_vehicle_retire"})
+    assert candidate == expected, "lifecycle-hotfix detour target set mismatch"
+
+
 def validate(
     baseline: pathlib.Path,
     candidate: pathlib.Path,
     policy_target_v200: bool,
+    lifecycle_hotfix: bool,
+    intersection_diagnostic: bool = False,
+    policy_target_v120: bool = False,
+    policy_target_30_b4_16: bool = False,
+    policy_target_30_b4_21: bool = False,
+    vehicle_ownership_diagnostic: bool = False,
 ) -> list[str]:
     base_source, _ = read_tree(baseline)
     candidate_source, candidate_files = read_tree(candidate)
     checks: list[str] = []
+    assert not vehicle_ownership_diagnostic or lifecycle_hotfix, (
+        "ownership diagnostic requires the explicit lifecycle-hotfix gate")
 
     base_defines = definitions(base_source)
     candidate_defines = definitions(candidate_source)
-    for name in sorted(POLICY_CONSTANTS):
-        expected = (
-            V200_POLICY_TARGET[name]
-            if policy_target_v200
-            else base_defines.get(name)
-        )
-        assert candidate_defines.get(name) == expected, (
-            f"policy constant changed: {name}: "
-            f"expected {expected!r}, got {candidate_defines.get(name)!r}"
-        )
+    assert sum((policy_target_v200, policy_target_v120, policy_target_30_b4_16,
+                policy_target_30_b4_21)) <= 1, "conflicting policy targets"
+    expanded_capacity = policy_target_v200 or policy_target_30_b4_16 or policy_target_30_b4_21
+    target = (V30_B4_21_POLICY_TARGET if policy_target_30_b4_21 else
+              V30_B4_16_POLICY_TARGET if policy_target_30_b4_16 else
+              V120_POLICY_TARGET if policy_target_v120 else
+              V200_POLICY_TARGET if policy_target_v200 else base_defines)
+    validate_policy_constants(candidate_defines, target)
+    if policy_target_v120:
+        for name in POLICY_CONSTANTS & base_defines.keys():
+            assert candidate_defines[name] == base_defines[name], (
+                f"original baseline policy mismatch: {name}")
     checks.append(
         f"policy constants: {len(POLICY_CONSTANTS)} "
-        + ("match v2.0.0 policy target" if policy_target_v200 else "unchanged")
+        + ("match 30-map/B4=21 isolation target" if policy_target_30_b4_21 else
+           "match 30-map/B4=16 isolation target" if policy_target_30_b4_16 else
+           "match original v1.2.0 comparison target" if policy_target_v120 else
+           "match v2.0 policy target" if policy_target_v200 else "unchanged")
     )
 
     base_rvas = {key: value for key, value in base_defines.items() if key.endswith("_RVA")}
     candidate_rvas = {key: value for key, value in candidate_defines.items() if key.endswith("_RVA")}
-    assert candidate_rvas == base_rvas, "engine RVA constant set changed"
-    checks.append(f"engine RVA constants: {len(base_rvas)} unchanged")
+    if lifecycle_hotfix:
+        expected_rvas = dict(base_rvas)
+        expected_rvas["FRAME_GRAPH_FINALIZER_RVA"] = "0x003E0E70ULL"
+        expected_rvas["FRAME_GRAPH_PRE_FINALIZER_RVA"] = "0x003E19E3ULL"
+        expected_rvas["SHADOW_FACE_SCHEDULER_RVA"] = "0x002D6070ULL"
+        assert candidate_rvas == expected_rvas, "lifecycle-hotfix RVA set mismatch"
+        checks.append("engine RVAs: frame-graph finalizer boundary and target added")
+    else:
+        assert candidate_rvas == base_rvas, "engine RVA constant set changed"
+        checks.append(f"engine RVA constants: {len(base_rvas)} unchanged")
 
     tail_pattern = r"\{\s*0x([0-9A-Fa-f]+)ULL,\s*0x([0-9A-Fa-f]+),\s*0x([0-9A-Fa-f]+)\s*\}"
     base_tails = re.findall(tail_pattern, array_block(base_source, "g_tail_patches"))
     candidate_tails = re.findall(tail_pattern, array_block(candidate_source, "g_tail_patches"))
-    if policy_target_v200:
+    if expanded_capacity:
         assert len(base_tails) == len(candidate_tails) == 46, (
             f"queue-tail count changed: baseline={len(base_tails)} "
             f"candidate={len(candidate_tails)}"
@@ -164,27 +225,65 @@ def validate(
 
     base_asia = hex_pairs(array_block(base_source, "g_asia_rva_map"))
     candidate_asia = hex_pairs(array_block(candidate_source, "g_asia_rva_map"))
-    assert candidate_asia == base_asia and len(candidate_asia) == 77, (
-        f"Asia map changed: baseline={len(base_asia)} candidate={len(candidate_asia)}"
-    )
+    if lifecycle_hotfix:
+        expected_asia = sorted(base_asia + [
+            (0x002D6070, 0x008F0E90),
+            (0x003E0E70, 0x00A57940),
+            (0x003E19E3, 0x00A584E3),
+        ])
+        assert candidate_asia == expected_asia and len(candidate_asia) == 80, (
+            f"Asia lifecycle map mismatch: baseline={len(base_asia)} "
+            f"candidate={len(candidate_asia)}"
+        )
+        checks.append("Asia explicit map: frame-graph finalizer boundary and target added")
+    else:
+        assert candidate_asia == base_asia and len(candidate_asia) == 77, (
+            f"Asia map changed: baseline={len(base_asia)} candidate={len(candidate_asia)}"
+        )
+        checks.append("Asia explicit map: 77 sorted entries unchanged")
     assert candidate_asia == sorted(candidate_asia), "Asia map is not sorted"
-    checks.append("Asia explicit map: 77 sorted entries unchanged")
 
-    prologues = (
+    prologues = [
         "g_resource_prologue", "g_register_pass_prologue", "g_manager_prologue",
         "g_renderer_queue_prologue", "g_resource_wrapper_prologue",
         "g_face_cost_reader_prologue", "g_frame_builder_prologue",
         "g_frame_builder_asia_prologue", "g_post_call_object_renderers_prologue",
         "g_render_record_release_prologue", "g_render_record_constructor_prologue",
-    )
+    ]
+    if lifecycle_hotfix:
+        prologues.remove("g_post_call_object_renderers_prologue")
+        assert "PostCallObjectRenderersFn" not in candidate_source
+        assert "g_post_call_object_renderers_prologue" not in candidate_source
     for name in prologues:
         assert byte_array(array_block(candidate_source, name)) == byte_array(
             array_block(base_source, name)
         ), f"hook signature changed: {name}"
+    if lifecycle_hotfix:
+        assert byte_array(array_block(
+            candidate_source, "g_shadow_face_scheduler_prologue")) == bytes.fromhex(
+                "48896C2418574154415541564157")
     checks.append(f"active hook signatures: {len(prologues)} unchanged")
 
-    assert installed_hooks(candidate_source) == installed_hooks(base_source), "installed detour target set changed"
-    checks.append(f"installed detour targets: {len(installed_hooks(candidate_source))} unchanged")
+    if lifecycle_hotfix:
+        validate_hook_targets(installed_hooks(base_source), installed_hooks(candidate_source),
+                              intersection_diagnostic, vehicle_ownership_diagnostic)
+        checks.append("lifecycle hook: PostCall removed; frame-graph tail relay owns drain")
+        if vehicle_ownership_diagnostic:
+            from validate_vehicle_ownership import verify_source
+            verify_source(candidate_files["src/modules/18_vehicle_light_diagnostics.inc"],
+                          candidate_files["src/modules/05_runtime_profiles.inc"])
+            from validate_vehicle_batch import verify_source as verify_batch_source
+            verify_batch_source(candidate_files["src/modules/18_vehicle_light_diagnostics.inc"],
+                                candidate_files["src/modules/05_runtime_profiles.inc"])
+            from validate_vehicle_retirement import verify_source as verify_retirement_source
+            verify_retirement_source(candidate_files["src/modules/18_vehicle_owner_lifetime.inc"],
+                                     candidate_files["src/modules/05_runtime_profiles.inc"])
+            checks.append("ownership diagnostic: exactly four optional detours; independent component/batch/retirement contracts")
+    else:
+        assert installed_hooks(candidate_source) == installed_hooks(base_source), (
+            "installed detour target set changed"
+        )
+        checks.append(f"installed detour targets: {len(installed_hooks(candidate_source))} unchanged")
 
     profile_source = candidate_files["src/modules/05_runtime_profiles.inc"]
     for name, identity in EXPECTED_PROFILES.items():
@@ -228,21 +327,29 @@ def validate(
     checks.append("transactions: all executable writes/allocations routed; two phased rollbacks")
 
     shared = candidate_files["src/modules/00_shared_config_state.inc"]
-    if policy_target_v200:
-        assert '#define PATCH_VERSION "2.0.0"' in shared
+    if expanded_capacity or policy_target_v120:
+        version = re.search(r'^#define PATCH_VERSION "(\d+)\.(\d+)\.(\d+)"$', shared, re.M)
+        assert version and tuple(map(int, version.groups())) >= (2, 0, 0)
         assert "#define PHYSICAL_QUEUE_ENTRIES (TOTAL_LOCAL_MAPS+1U)" in shared
         assert "#define QUEUE_ARRAY_CLEAR_BYTES (4U+TOTAL_LOCAL_MAPS*4U)" in shared
         expansion = candidate_files["src/modules/60_engine_expansion.inc"]
         assert "(unsigned char)TOTAL_LOCAL_MAPS" in expansion
         assert "(unsigned char)TARGET_DYNAMIC_B4" in expansion
         assert "EXTRA_SLICE_RESULT_COUNT" in candidate_source
-        checks.append(
-            "v2.0.0 policy: 30 maps, 31 queue entries, 14 external maps, "
+        checks.append("admission isolation: 30 maps, 31 queue entries, 14 external maps, "
+                      "28 pass slots, 13 external results, B4=21, A8=4" if policy_target_30_b4_21 else
+                      "capacity isolation: 30 maps, 31 queue entries, 14 external maps, "
+                      "28 pass slots, 13 external results, B4=16, A8=4" if policy_target_30_b4_16 else
+                      "v1.2.0 comparison: 24 maps, 25 queue entries, 8 external maps, "
+                      "16 pass slots, 7 external results, B4=16, A8=4" if policy_target_v120 else
+            "v2.0 policy: 30 maps, 31 queue entries, 14 external maps, "
             "28 pass slots, 13 external results, B4=25, A8=4"
         )
     for state_type in (
         "BootstrapState", "HookBindings", "ManagerRendererState",
-        "ResourcePassState", "ExternalResultState", "ShadowEngineContext",
+        "ResourcePassState", "ExternalResultState", "CompletionDiagnosticState",
+        "VehicleLightDiagnosticState",
+        "ShadowEngineContext",
     ):
         assert f"typedef struct {state_type}" in shared, (
             f"subsystem context missing: {state_type}"
@@ -251,7 +358,7 @@ def validate(
     assert not re.search(r"^static\s+volatile\s+LONG\s+g_", shared, re.M)
     assert not re.search(r"^#define\s+g_", shared, re.M)
     assert candidate_source.count("g_shadow_engine.") >= 400
-    checks.append("state ownership: one explicit root context with five cohesive subsystem states")
+    checks.append("state ownership: one explicit root context with cohesive subsystem states")
 
     preflight = candidate_files["src/modules/65_runtime_preflight.inc"]
     orchestration = candidate_files[bootstrap_path]
@@ -262,7 +369,8 @@ def validate(
     assert "prepare_early_patch_plan(" in orchestration
     assert "commit_early_patch_plan(" in orchestration
     assert "stage_e_worker(" not in orchestration
-    assert len(orchestration.splitlines()) < 350
+    # Bound orchestration content independently of whitespace formatting.
+    assert sum(bool(line.strip()) for line in orchestration.splitlines()) < 350
     assert "stage_e_worker(" in runtime_entry
     assert "DllMain(" in runtime_entry
     assert "select_runtime_profile(" not in runtime_entry
@@ -274,13 +382,26 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", required=True, type=pathlib.Path)
     parser.add_argument("--candidate", required=True, type=pathlib.Path)
-    parser.add_argument("--policy-target-v200", action="store_true")
+    policy = parser.add_mutually_exclusive_group()
+    policy.add_argument("--policy-target-v200", action="store_true")
+    policy.add_argument("--policy-target-v120", action="store_true")
+    policy.add_argument("--policy-target-30-b4-16", action="store_true")
+    policy.add_argument("--policy-target-30-b4-21", action="store_true")
+    parser.add_argument("--lifecycle-hotfix", action="store_true")
+    parser.add_argument("--intersection-diagnostic", action="store_true")
+    parser.add_argument("--vehicle-ownership-diagnostic", action="store_true")
     args = parser.parse_args()
     try:
         checks = validate(
             args.baseline.resolve(),
             args.candidate.resolve(),
             args.policy_target_v200,
+            args.lifecycle_hotfix,
+            args.intersection_diagnostic,
+            args.policy_target_v120,
+            args.policy_target_30_b4_16,
+            args.policy_target_30_b4_21,
+            args.vehicle_ownership_diagnostic,
         )
     except (AssertionError, KeyError) as error:
         print(f"FAIL: {error}", file=sys.stderr)

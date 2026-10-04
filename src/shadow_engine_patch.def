@@ -2,3 +2,6 @@ LIBRARY ShadowEnginePatch
 EXPORTS
     Init @1
     OnBeforeEngineInit @2
+    ShadowEngine_GetControlApiVersion @3
+    ShadowEngine_GetVehicleHeadlightLimiterEnabled @4
+    ShadowEngine_SetVehicleHeadlightLimiterEnabled @5

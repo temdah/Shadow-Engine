@@ -1,0 +1,8 @@
+LIBRARY renderer_queue_harness.exe
+
+EXPORTS
+Init
+OnBeforeEngineInit
+ShadowEngine_GetControlApiVersion
+ShadowEngine_GetVehicleHeadlightLimiterEnabled
+ShadowEngine_SetVehicleHeadlightLimiterEnabled

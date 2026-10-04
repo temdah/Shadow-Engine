@@ -1,41 +1,13 @@
-# Unity-module architecture
+# Working with unity modules
 
-`src/shadow_engine_patch.c` is the only translation unit passed to TinyCC. It
-includes these modules in dependency order so the project still produces one
-compact `ShadowEnginePatch.asi` without changing the tested ABI, static linkage,
-initialization order or hook trampoline behavior.
+Compile only `src/shadow_engine_patch.c` through the project build entry point;
+the `.inc` files are not independent translation units. Preserve include order,
+static linkage, initialization order and explicit interface ownership.
 
-The module order is a contract:
+Change the owning module and its declared interface. Keep composition in the
+aggregator and use the project build/validation instructions for the affected
+configuration. Do not copy module bodies between experimental worktrees.
 
-1. `00_shared_config_state.inc` owns shared engine constants, hook signatures,
-   the root `ShadowEngineContext`, five cohesive subsystem state objects and
-   forward declarations.
-2. `05_runtime_profiles.inc` owns the five immutable PE identities, clustered
-   or explicit RVA strategy, helper RVAs and per-profile detour prologue.
-3. `10_runtime_primitives.inc` owns logging, memory checks, atomic helpers and
-   generic detour installation.
-4. `15_patch_transaction.inc` owns journaled executable writes, relay/trampoline
-   allocations, reverse-order rollback and transaction commit.
-5. `20_manager_owner_profile.inc` owns the manager profile and owner-vector
-   pre-reservation.
-6. `30_renderer_queue_diagnostics.inc` owns whole-record face admission, queue
-   validation, residency sampling and F8/F9 queue capture.
-7. `40_external_slice_results.inc` owns generation-safe external SliceExecute
-   result storage, consumption, release and bounded F8/F9 diagnostics.
-8. `60_engine_expansion.inc` owns maps, passes, queue layout, routing relays and
-   scheduler writes.
-9. `65_runtime_preflight.inc` owns PE/profile selection, read-only unknown-build
-   mapping, helper recovery and complete mutation-site validation.
-10. `70_bootstrap_orchestration.inc` owns immutable patch-plan preparation and
-    transactional early/deferred installation only.
-11. `80_runtime_entry.inc` owns NexusTools lifecycle monitoring, completion
-    proof, exported entry points, fallback startup and `DllMain`.
-
-Later modules may call earlier helpers and the forward-declared hook entry
-points in module 00. Earlier modules must not depend on implementations in later
-modules except through those declarations. Runtime-policy changes must stay in
-their owning module instead of being added to the bootstrap orchestrator.
-
-This remains a unity build until the refactored interfaces pass the full runtime
-matrix. Regional differences must be added only through `RuntimeProfile`; core
-modules must not branch on profile numbers or storefront labels.
+The maintained [architecture](../../../OKF/projects/shadow-engine/architecture/runtime-architecture.md) and
+[function map](../../../OKF/projects/shadow-engine/architecture/function-map.md) explain responsibilities,
+dependencies and evidence. Record new findings there, not as a version diary here.

@@ -29,6 +29,7 @@ static const RuntimeRvaMap g_asia_rva_map[] = {
     { 0x002CC300ULL, 0x008E30A0ULL },
     { 0x002CC31CULL, 0x008E30BCULL },
     { 0x002CC333ULL, 0x008E30D3ULL },
+    { 0x002D6070ULL, 0x008F0E90ULL },
     { 0x002D608DULL, 0x008F0EADULL },
     { 0x002D60B2ULL, 0x008F0ED2ULL },
     { 0x002D61D1ULL, 0x008F0FF1ULL },
@@ -86,6 +87,8 @@ static const RuntimeRvaMap g_asia_rva_map[] = {
     { 0x003DF833ULL, 0x00A56A1BULL },
     { 0x003E072FULL, 0x00A571EFULL },
     { 0x003E07E7ULL, 0x00A572A7ULL },
+    { 0x003E0E70ULL, 0x00A57940ULL },
+    { 0x003E19E3ULL, 0x00A584E3ULL },
     { 0x003E4420ULL, 0x00A5B330ULL },
     { 0x00427860ULL, 0x009947B0ULL }
 };
@@ -94,6 +97,18 @@ typedef enum RuntimeRvaStrategy {
     RUNTIME_RVA_CLUSTERED = 0,
     RUNTIME_RVA_EXPLICIT = 1
 } RuntimeRvaStrategy;
+
+static const unsigned char g_intersection_lookup_prologue[15]={
+    0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x18,
+    0x48,0x89,0x74,0x24,0x20
+};
+static const unsigned char g_intersection_lookup_asia_prologue[15]={
+    0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x74,0x24,0x18,
+    0x89,0x54,0x24,0x10,0x57
+};
+#include "../internal/lua_frame_sites.inc"
+#include "../internal/driver_identity_profile.inc"
+#include "../internal/population_capture_profile.inc"
 
 typedef struct RuntimeProfile {
     LONG id;
@@ -112,6 +127,18 @@ typedef struct RuntimeProfile {
     size_t rva_map_count;
     const unsigned char *frame_builder_prologue;
     size_t frame_builder_prologue_size;
+    const unsigned char *intersection_lookup_prologue;
+    unsigned char intersection_record_modrm;
+    const LuaFramePatchSite *lua_frame_sites;
+    size_t lua_frame_site_count;
+    /* Independently recovered optional diagnostic boundary; never cluster-derived. */
+    uint64_t vehicle_retire_rva;
+    uint64_t vehicle_light_batch_rva;
+    uint64_t vehicle_light_update_rva;
+    uint64_t vehicle_spatial_copy_rva; /* Read-only field proof; never invoked. */
+    uint64_t local_player_binding_rva,entity_position_reader_rva;
+    const DriverIdentityProfile *driver_identity;
+    const PopulationCaptureProfile *population_capture;
 } RuntimeProfile;
 
 typedef struct RuntimeProfileState {
@@ -126,23 +153,24 @@ static const RuntimeProfile g_runtime_profiles[] = {
     { 1, "supported-04DF", 0x06595000U, 0x5CD045B4U, 0x01E5793CU,
       0x04760FA6U, RUNTIME_RVA_CLUSTERED, 0, 0, 0, STRING_ASSIGN_RVA,
       0x000B9780ULL, NULL, 0, g_frame_builder_prologue,
-      sizeof(g_frame_builder_prologue) },
+      sizeof(g_frame_builder_prologue),g_intersection_lookup_prologue,0x87,
+      LUA_FRAME_GLOBAL_SITES,LUA_FRAME_GLOBAL_SITE_COUNT,0x0098EFD0ULL,0x0093D730ULL,0x00BA7570ULL,0x025BB050ULL,0x006F1D95ULL,0x0082E610ULL,&g_global_driver_identity_profile,POPULATION_GLOBAL_PROFILE },
     { 2, "a4ee-signed-variant", 0x06595000U, 0x5CD13864U, 0x01E4FD51U,
       0x05824EE5U, RUNTIME_RVA_CLUSTERED, 0x00597690ULL, 0x005FDC60ULL,
       0x00524650ULL, 0x00136CD0ULL, 0x0011A380ULL, NULL, 0,
-      g_frame_builder_prologue, sizeof(g_frame_builder_prologue) },
+      g_frame_builder_prologue, sizeof(g_frame_builder_prologue),g_intersection_lookup_prologue,0x87,LUA_FRAME_A4EE_SITES,LUA_FRAME_A4EE_SITE_COUNT,0,0,0,0,0,0,NULL,NULL },
     { 3, "vmpless-1.06", 0x04ED6000U, 0x5BE5AA1AU, 0x048AF60CU,
       0x02F58AC8U, RUNTIME_RVA_CLUSTERED, 0x005B83F0ULL, 0x0061E710ULL,
       0x00545D80ULL, 0x0013A080ULL, 0x0011D660ULL, NULL, 0,
-      g_frame_builder_prologue, sizeof(g_frame_builder_prologue) },
+      g_frame_builder_prologue, sizeof(g_frame_builder_prologue),g_intersection_lookup_prologue,0x87,LUA_FRAME_VMPLESS_SITES,LUA_FRAME_VMPLESS_SITE_COUNT,0x00569460ULL,0x00517BC0ULL,0x0078E1A0ULL,0x00819E00ULL,0,0,NULL,NULL },
     { 4, "complete-edition-1.06.329", 0x041AB000U, 0x55DC1ECDU,
       0x03B84DA7U, 0x021FD388U, RUNTIME_RVA_CLUSTERED, 0x019FFDE0ULL,
       0x01A66680ULL, 0x0198C410ULL, 0x00136A50ULL, 0x0011A190ULL,
-      NULL, 0, g_frame_builder_prologue, sizeof(g_frame_builder_prologue) },
+      NULL, 0, g_frame_builder_prologue, sizeof(g_frame_builder_prologue),g_intersection_lookup_prologue,0x87,LUA_FRAME_COMPLETE_SITES,LUA_FRAME_COMPLETE_SITE_COUNT,0x019B3300ULL,0x01961A60ULL,0x01BB5420ULL,0x01C631F0ULL,0,0,NULL,NULL },
     { 5, "asia-miru-1.06.329", 0x07EE1000U, 0x543589C5U, 0x02B88696U,
       0x07C88AFEU, RUNTIME_RVA_EXPLICIT, 0, 0, 0, 0x00127F30ULL,
       0x00170020ULL, g_asia_rva_map, ARRAY_COUNT(g_asia_rva_map),
-      g_frame_builder_asia_prologue, sizeof(g_frame_builder_asia_prologue) }
+      g_frame_builder_asia_prologue, sizeof(g_frame_builder_asia_prologue),g_intersection_lookup_asia_prologue,0x85,LUA_FRAME_ASIA_SITES,LUA_FRAME_ASIA_SITE_COUNT,0x00610DA0ULL,0x005EF450ULL,0x0077E560ULL,0x007F12E0ULL,0,0,NULL,NULL }
 };
 
 static RuntimeProfileState g_runtime_state;

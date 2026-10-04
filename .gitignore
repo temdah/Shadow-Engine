@@ -10,13 +10,14 @@ cmake_install.cmake
 
 # Agent workflow and local project state
 **/AGENTS.md
-!/AGENTS.md
 handoff.md
 **/handoff.md
 
 # Local build and packaging output
 build/
 build_repro/
+build_release/
+build_release_repro/
 __pycache__/
 *.pyc
 dist/
@@ -45,3 +46,9 @@ tools/tcc/
 *.suo
 Thumbs.db
 Desktop.ini
+
+# Local continuation instructions
+*_handoff.md
+
+# Nexus-only page text; distributed separately from the code repository
+/packaging/nexus/

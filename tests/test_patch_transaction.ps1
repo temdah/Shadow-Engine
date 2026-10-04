@@ -7,7 +7,7 @@ $project = Split-Path -Parent $PSScriptRoot
 if (-not $CompilerPath) {
     $workspace = Split-Path -Parent (Split-Path -Parent $project)
     $CompilerPath = Join-Path $workspace `
-        'Tools\Applications\tcc-0.9.27-win64\tcc\tcc.exe'
+        'Support\Tools\Applications\tcc-0.9.27-win64\tcc\tcc.exe'
 }
 if (-not (Test-Path -LiteralPath $CompilerPath)) {
     throw 'TinyCC 0.9.27 was not found. Pass -CompilerPath.'
